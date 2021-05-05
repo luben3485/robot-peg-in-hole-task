@@ -49,3 +49,9 @@ def depth_image_normalize(
     normalizer = 1.0 / float(depth_scale)
     tensor = tensor * normalizer
     return tensor
+
+def normalize(v):
+    norm = np.linalg.norm(v)
+    if norm == 0:
+       return v
+    return v / norm

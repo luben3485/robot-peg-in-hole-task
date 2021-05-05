@@ -2,7 +2,7 @@ import os
 import numpy as np
 from PIL import Image
 from ruamel import yaml
-from .utils import rgb_image_normalize, depth_image_normalize
+from .utils import rgb_image_normalize, depth_image_normalize, normalize
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
@@ -23,10 +23,12 @@ class RobotDataset(Dataset):
         # ‘F’ means to flatten in column-major (Fortran- style) order
         #delta_rotation_matrix = delta_rotation_matrix.flatten('F')[:9].reshape(9,1)
         delta_rotation_matrix = delta_rotation_matrix.reshape(3,3)
+        delta_translation = normalize(delta_translation) # normalization
         delta_translation = delta_translation.reshape(3,1)
-        delta_translation[0, 0] *= 66 # scale x
-        delta_translation[1, 0] *= 40  # scale y
-        delta_translation[2, 0] *= 33  # scale z
+        #delta_translation[0, 0] *= 66 # scale x
+        #delta_translation[1, 0] *= 40  # scale y
+        #delta_translation[2, 0] *= 33  # scale z
+
         #label = np.concatenate((delta_rotation_matrix_flatten, delta_translation_flatten), axis=0)
         #label = torch.squeeze(torch.from_numpy(label)).float()
         gt_rmat = torch.from_numpy(delta_rotation_matrix).float()
@@ -79,17 +81,11 @@ if __name__ == '__main__' :
     dataset = RobotDataset(data_folder)
     dataiter = DataLoader(dataset, batch_size=16, shuffle=True)
 
-    max = 0
     for idx, (rgbd, gt_rmat, gt_t) in enumerate(dataiter):
         print(idx,rgbd.shape)
-        #print(label.shape)
-        #print(gt_rmat)
-        print(gt_t[:,0,0])
-        t = torch.max(torch.abs(gt_t[:,0,0]))
-        if t > max:
-            max = t
+        print(gt_t)
         print('='*30)
-    print(max)
+
     #x max  0.014   0.015   *66
     #y max 0.0226   0.025   *40
     #z max 0.0295   0.03    *33
