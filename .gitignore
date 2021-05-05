@@ -1,0 +1,5 @@
+/mover/runs/
+/mover/ckpnt*
+/mankey/experiment/ckpnt*
+/mankey/experiment/runs
+/mankey/experiment/tmp
