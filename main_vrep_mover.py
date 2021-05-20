@@ -5,7 +5,7 @@ from mover.inference import MoveInference
 
 def main():
     rob_arm = SingleRoboticArm()
-    checkpoints_file_path = 'mover/ckpnt/checkpoints_best.pth'
+    checkpoints_file_path = 'mover/ckpnt/checkpoint-best.pth'
     mover = MoveInference(checkpoints_file_path)
 
     # gt grasp

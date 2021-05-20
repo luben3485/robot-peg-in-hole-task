@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import mankey.network.inference as inference
+import mankey.network.inference_grayscale as inference_grayscale
 from mankey.utils.imgproc import PixelCoord
 import argparse
 import os
@@ -27,7 +27,7 @@ class KeypointDetection(object):
 
         # The network
         assert os.path.exists(network_ckpnt_path)
-        self._network, self._net_config = inference.construct_resnet_nostage(network_ckpnt_path)
+        self._network, self._net_config = inference_grayscale.construct_resnet_nostage(network_ckpnt_path)
         
     def inference(self, bbox, cv_rgb=None, cv_depth=None ,cv_rgb_path='', cv_depth_path=''):
         if cv_rgb_path != '':
@@ -52,12 +52,12 @@ class KeypointDetection(object):
         bottom_right.y = bbox[3]
 
         # Perform the inference
-        imgproc_out = inference.proc_input_img_raw(
+        imgproc_out = inference_grayscale.proc_input_img_raw(
             cv_rgb, cv_depth,
             top_left, bottom_right)
-        keypointxy_depth_scaled = inference.inference_resnet_nostage(self._network, imgproc_out)
-        keypointxy_depth_realunit = inference.get_keypoint_xy_depth_real_unit(keypointxy_depth_scaled)
-        _, camera_keypoint = inference.get_3d_prediction(
+        keypointxy_depth_scaled = inference_grayscale.inference_resnet_nostage(self._network, imgproc_out)
+        keypointxy_depth_realunit = inference_grayscale.get_keypoint_xy_depth_real_unit(keypointxy_depth_scaled)
+        _, camera_keypoint = inference_grayscale.get_3d_prediction(
             keypointxy_depth_realunit,
             imgproc_out.bbox2patch)
         return camera_keypoint

@@ -180,7 +180,7 @@ def initialize_backbone_from_modelzoo(
         resnet_num_layers,  # type: int
         image_channels,  # type: int
     ):
-    assert image_channels == 3 or image_channels == 4
+    assert image_channels == 3 or image_channels == 4 or image_channels == 2
     _, _, _, name = resnet_spec[resnet_num_layers]
     org_resnet = model_zoo.load_url(model_urls[name])
     # Drop orginal resnet fc layer, add 'None' in case of no fc layer, that will raise error
@@ -188,6 +188,16 @@ def initialize_backbone_from_modelzoo(
     org_resnet.pop('fc.bias', None)
     # Load the backbone
     if image_channels is 3:
+        backbone.load_state_dict(org_resnet)
+    elif image_channels is 2:
+        # Modify the first conv
+        conv1_weight_old = org_resnet['conv1.weight']
+        avg_weight = conv1_weight_old.mean(dim=1, keepdim=False)
+        conv1_weight = torch.zeros((64, 2, 7, 7))
+        conv1_weight[:, 0, :, :] = avg_weight
+        conv1_weight[:, 1, :, :] = avg_weight
+        org_resnet['conv1.weight'] = conv1_weight
+        # Load it
         backbone.load_state_dict(org_resnet)
     elif image_channels is 4:
         # Modify the first conv

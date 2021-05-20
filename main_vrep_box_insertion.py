@@ -1,5 +1,5 @@
 from env.single_robotic_arm import SingleRoboticArm
-from keypoint_detection import KeypointDetection
+from keypoint_detection_grayscale import KeypointDetection
 import numpy as np
 import cv2
 import math
@@ -32,60 +32,22 @@ def quaternion_matrix(quaternion):
 def main():
     rob_arm = SingleRoboticArm()
     init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-    netpath = '/home/luben/robot-peg-in-hole-task/mankey/experiment/ckpnt_0420/checkpoint-100.pth'
+    netpath = '/home/luben/robot-peg-in-hole-task/mankey/experiment/box_ckpnt_grayscale/checkpoint-100.pth'
     kp_detection = KeypointDetection(netpath)
 
-    #extrinsic = rob_arm.get_camera_matrix(cam_name='Vision_sensor0')
-    #print(extrinsic)
-    #intrinsic = rob_arm.get_intrinsic_matrix()
-    #print(intrinsic)
-    #rgb = rob_arm.get_rgb(cam_name='Vision_sensor0')
-    #print(rgb.shape)
-    #depth = rob_arm.get_depth(cam_name='Vision_sensor0', near_plane=0.02, far_plane=1)
-    #depth_mm = (depth * 1000).astype(np.uint16)  # type: np.uint16 ; uint16 is needed by keypoint detection network
-    #print(depth.shape)
-    #masks = rob_arm.get_mask()
-
-
-    ### gt open-loop
-    '''  
-    hole_keypoint_pos = rob_arm.get_target_matrix('hole_keypoint')
-    action_matrix = rob_arm.get_correct_action_matrix('peg_keypoint')
-    grasp_list = rob_arm.naive_grasp_detection(rgb, depth)
-    #rob_arm.run_grasp(grasp_list, 1, use_gdn=False)
-    rob_arm.pick_and_place(grasp_list, 1, action_matrix,use_gdn=False)
-    '''
-     
-    ### gt close-loop
-    '''
-    grasp_list = rob_arm.naive_grasp_detection(rgb, depth)
-    rob_arm.run_grasp(grasp_list, 1, use_gdn = False)
-    print('servoing...')
-    rob_arm.gt_peg_in_hole_servo(target_name='hole_keypoint', object_name='peg_keypoint')
-    '''
-
-    ### close-loop
-
-    #naive grasp
-    '''
-    rgb = rob_arm.get_rgb()
-    depth = rob_arm.get_depth()
-    grasp_list = rob_arm.naive_grasp_detection(rgb, depth)
-    rob_arm.run_grasp(grasp_list, 1, use_gdn = False)
-    '''
-
-    #gt grasp
-    peg_keypoint_bottom_pose = rob_arm.get_object_matrix(obj_name='peg_keypoint_bottom')
-    grasp_pose = peg_keypoint_bottom_pose.copy()
-    grasp_pose[2,3] += 0.08
+    ## gt grasp
+    peg_keypoint_top_pose = rob_arm.get_object_matrix(obj_name='peg_keypoint_top_large0')
+    grasp_pose = peg_keypoint_top_pose.copy()
+    grasp_pose[0, 3] += 0.0095
+    grasp_pose[2, 3] -= 0.015
     rob_arm.gt_run_grasp(grasp_pose)
-    grasp_pose[2, 3] += 0.2
+    grasp_pose[2, 3] += 0.24
     rob_arm.movement(grasp_pose)
 
-
+    choose_hole = 4
     print('servoing...')
     bbox = np.array([0, 0, 255, 255])
-    err_tolerance = 0.18
+    err_tolerance = 0.08
     alpha_err = 0.7
     alpha_target = 0.7
     filter_robot_pose = rob_arm.get_object_matrix('UR5_ikTip')
@@ -119,7 +81,7 @@ def main():
         cam_pos, cam_quat, cam_matrix= rob_arm.get_camera_pos(cam_name=cam_name)
         cam_matrix = np.array(cam_matrix).reshape(3,4)
         camera2world_matrix = cam_matrix
-        world_keypoints = np.zeros((4, 3), dtype=np.float64)
+        world_keypoints = np.zeros((14, 3), dtype=np.float64)
         for idx, keypoint in enumerate(camera_keypoint):
             keypoint = np.append(keypoint, 1)
             world_keypoints[idx, :] = np.dot(camera2world_matrix, keypoint)[0:3]
@@ -127,24 +89,26 @@ def main():
 
         peg_keypoint_top = world_keypoints[0]
         peg_keypoint_bottom = world_keypoints[1]
-        #object_keypoint[0] = object_keypoint[0] * -1
-        #object_keypoint[1] = object_keypoint[1] * -1
-        hole_keypoint_top = world_keypoints[2]
-        hole_keypoint_bottom = world_keypoints[3]
 
-        #target_keypoint[0] = target_keypoint[0]* -1
-        #target_keypoint[1] = target_keypoint[1] * -1
+
+        hole_keypoint_top = world_keypoints[2*(choose_hole+1)]
+        hole_keypoint_bottom = world_keypoints[2*(choose_hole+1)+1]
+
+
 
         err = hole_keypoint_top - peg_keypoint_bottom
         # err*= 0.1
         print('err vector', err)
-        if cnt>=100:
-            kp_detection.visualize(cv_rgb=rgb, cv_depth=depth_mm, keypoints=camera_keypoint)
+
 
 
         dis = math.sqrt(math.pow(err[0], 2) + math.pow(err[1], 2))
         print('Distance:', dis)
-        if dis < 0.01:
+        if cnt>= 500 :
+            kp_detection.visualize(cv_rgb=rgb, cv_depth=depth_mm, keypoints=camera_keypoint)
+
+        tilt = False
+        if dis < 0.01 and tilt == True:
             hole_dir = hole_keypoint_bottom - hole_keypoint_top
             peg_dir = peg_keypoint_bottom - peg_keypoint_top
             dot_product = np.dot(peg_dir, hole_dir)
@@ -187,39 +151,16 @@ def main():
     print('insertion')
     dir = np.array([0,0,-1])
     move_pose = rob_arm.get_object_matrix('UR5_ikTip')
-    move_pose[:3, 3] += dir * 0.185
+    move_pose[:3, 3] += dir * 0.2
     rob_arm.insertion(move_pose)
 
     # after insertion
-    move_pose[:3, 3] -= dir * 0.185
+    move_pose[:3, 3] -= dir * 0.2
     rob_arm.movement(move_pose)
 
     # go back to initial pose
     rob_arm.movement(init_pose)
 
-
-
-    ### arm move test
-    '''   
-    robot_pose = rob_arm.get_object_matrix('UR5_ikTip')
-    robot_pose[2,3] += 10 
-    rob_arm.movement(robot_pose)
-    '''
-    ### only grasp
-    '''
-    option = 'naive'
-    if option == 'gdn':
-        for mask in masks:
-            rob_arm.visualize_image(mask, depth, rgb)
-            grasp_list = rob_arm.get_grasping_candidate(depth, mask, 75, 75)
-            #print(grasp_list)
-            rob_arm.run_grasp(grasp_list, 1)
- 
-    else:
-        grasp_list = rob_arm.naive_grasp_detection(rgb, depth)
-        #print(grasp_list)
-        rob_arm.run_grasp(grasp_list, 1, use_gdn = False)
-    '''
     rob_arm.finish()
 
 

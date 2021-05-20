@@ -1,5 +1,6 @@
 /mover/runs/
 /mover/ckpnt*
 /mankey/experiment/ckpnt*
+/mankey/experiment/box_ckpnt*
 /mankey/experiment/runs
 /mankey/experiment/tmp
