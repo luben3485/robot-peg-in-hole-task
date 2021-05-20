@@ -34,9 +34,10 @@ class KeypointDetection(object):
             cv_rgb = cv2.imread(cv_rgb_path, cv2.IMREAD_COLOR)
         if cv_depth_path != '':
             cv_depth = cv2.imread(cv_depth_path, cv2.IMREAD_ANYDEPTH)
-       	camera_keypoint = self.process_raw(cv_rgb, cv_depth, bbox)
+       	camera_keypoint, keypointxy_depth_realunit = self.process_raw(cv_rgb, cv_depth, bbox)
         camera_keypoint = camera_keypoint.T  # shape[0]: n sample, shape[1]: xyz
-        return camera_keypoint
+        keypointxy_depth_realunit = keypointxy_depth_realunit.T
+        return camera_keypoint, keypointxy_depth_realunit
 
     def process_raw(
             self,
@@ -60,7 +61,7 @@ class KeypointDetection(object):
         _, camera_keypoint = inference_grayscale.get_3d_prediction(
             keypointxy_depth_realunit,
             imgproc_out.bbox2patch)
-        return camera_keypoint
+        return camera_keypoint, keypointxy_depth_realunit
 
     def visualize(self, keypoints, cv_rgb=None, cv_depth=None, cv_rgb_path='', cv_depth_path=''):
 

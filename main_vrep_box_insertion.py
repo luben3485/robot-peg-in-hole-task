@@ -3,6 +3,7 @@ from keypoint_detection_grayscale import KeypointDetection
 import numpy as np
 import cv2
 import math
+import random
 
 def quaternion_matrix(quaternion):
     """Return homogeneous rotation matrix from quaternion.
@@ -34,9 +35,51 @@ def main():
     init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
     netpath = '/home/luben/robot-peg-in-hole-task/mankey/experiment/box_ckpnt_grayscale/checkpoint-100.pth'
     kp_detection = KeypointDetection(netpath)
+    choose_hole = 0
+    bbox = np.array([0, 0, 255, 255])
+
+    # random remove peg
+    peg_list = list(range(6))
+    num_remove = random.randint(1, 6)
+    print('number of remove peg:{:d}'.format(num_remove))
+    remove_list = random.sample(peg_list, num_remove)
+    for i, v in enumerate(remove_list):
+        print('remove peg_idx:{:d}'.format(v))
+        rob_arm.set_object_position('peg_large' + str(v), [2, 0.2 * i, 0.1])
+        peg_list.pop(peg_list.index(v))
+
+    hole_check_pose = rob_arm.get_object_matrix(obj_name='hole_check')
+    rob_arm.movement(hole_check_pose)
+
+    # detect empty hole
+    cam_name = 'vision_eye'
+    rgb = rob_arm.get_rgb(cam_name=cam_name)
+    depth = rob_arm.get_depth(cam_name=cam_name, near_plane=0.01, far_plane=1.5)
+
+    # rotate 180
+    (h, w) = rgb.shape[:2]
+    center = (w / 2, h / 2)
+    M = cv2.getRotationMatrix2D(center, 180, 1.0)
+    rgb = cv2.warpAffine(rgb, M, (w, h))
+    # rotate 180
+    (h, w) = depth.shape[:2]
+    center = (w / 2, h / 2)
+    M = cv2.getRotationMatrix2D(center, 180, 1.0)
+    depth = cv2.warpAffine(depth, M, (w, h))
+    depth_mm = (depth * 1000).astype(np.uint16)  # type: np.uint16 ; uint16 is needed by keypoint detection network
+    camera_keypoint, keypointxy_depth_realunit = kp_detection.inference(cv_rgb=rgb, cv_depth=depth_mm, bbox=bbox)
+    depth_hole_list = []
+    for i in range(6):
+        x = int(keypointxy_depth_realunit[2 * (i + 1)][0])
+        y = int(keypointxy_depth_realunit[2 * (i + 1)][1])
+        #print(x,y,depth_mm[y][x])
+        depth_hole_list.append(depth_mm[y][x])
+
+    choose_hole = depth_hole_list.index(max(depth_hole_list))
+    print('Get ready to insert hole {:d} !'.format(choose_hole))
 
     ## gt grasp
-    peg_keypoint_top_pose = rob_arm.get_object_matrix(obj_name='peg_keypoint_top_large0')
+    peg_keypoint_top_pose = rob_arm.get_object_matrix(obj_name='peg_keypoint_top_large')
     grasp_pose = peg_keypoint_top_pose.copy()
     grasp_pose[0, 3] += 0.0095
     grasp_pose[2, 3] -= 0.015
@@ -44,9 +87,8 @@ def main():
     grasp_pose[2, 3] += 0.24
     rob_arm.movement(grasp_pose)
 
-    choose_hole = 4
+
     print('servoing...')
-    bbox = np.array([0, 0, 255, 255])
     err_tolerance = 0.08
     alpha_err = 0.7
     alpha_target = 0.7
@@ -76,7 +118,7 @@ def main():
         depth = cv2.warpAffine(depth, M, (w, h))
 
         depth_mm = (depth * 1000).astype(np.uint16)  # type: np.uint16 ; uint16 is needed by keypoint detection network
-        camera_keypoint = kp_detection.inference(cv_rgb=rgb, cv_depth=depth_mm, bbox=bbox)
+        camera_keypoint, keypointxy_depth_realunit = kp_detection.inference(cv_rgb=rgb, cv_depth=depth_mm, bbox=bbox)
 
         cam_pos, cam_quat, cam_matrix= rob_arm.get_camera_pos(cam_name=cam_name)
         cam_matrix = np.array(cam_matrix).reshape(3,4)
@@ -104,7 +146,7 @@ def main():
 
         dis = math.sqrt(math.pow(err[0], 2) + math.pow(err[1], 2))
         print('Distance:', dis)
-        if cnt>= 500 :
+        if cnt>= 100 :
             kp_detection.visualize(cv_rgb=rgb, cv_depth=depth_mm, keypoints=camera_keypoint)
 
         tilt = False
