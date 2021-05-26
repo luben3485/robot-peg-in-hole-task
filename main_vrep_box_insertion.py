@@ -40,7 +40,7 @@ def main():
 
     # random remove peg
     peg_list = list(range(6))
-    num_remove = random.randint(1, 6)
+    num_remove = random.randint(2, 3)
     print('number of remove peg:{:d}'.format(num_remove))
     remove_list = random.sample(peg_list, num_remove)
     for i, v in enumerate(remove_list):

@@ -5,7 +5,7 @@ from mover.inference import MoveInference
 
 def main():
     rob_arm = SingleRoboticArm()
-    checkpoints_file_path = 'mover/ckpnt/checkpoint-best.pth'
+    checkpoints_file_path = 'mover/ckpnt/checkpoints_best.pth'
     mover = MoveInference(checkpoints_file_path)
 
     # gt grasp
@@ -17,7 +17,7 @@ def main():
     rob_arm.movement(grasp_pose)
 
     cnt = 0
-    for i in range(10):
+    for i in range(20):
         print('========cnt:' + str(cnt) + '=========\n')
         cnt += 1
         cam_name = 'vision_eye'
@@ -29,7 +29,7 @@ def main():
         print(t)
         robot_pose = rob_arm.get_object_matrix('UR5_ikTip')
         rot_matrix = np.dot(r, robot_pose[:3, :3])
-        robot_pose[:3, :3] = rot_matrix
+        #robot_pose[:3, :3] = rot_matrix
         robot_pose[:3, 3] += t
         print(robot_pose)
         rob_arm.movement(robot_pose)

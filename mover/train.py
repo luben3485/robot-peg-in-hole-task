@@ -5,12 +5,13 @@ import logging
 import torch
 import numpy as np
 from tqdm import tqdm
-from models.model import Model
+from models.model import Model, init_from_modelzoo
 from losses.loss import RMSELoss
 from dataset.dataset import RobotDataset
 from torch.utils.data import DataLoader
 import torch.utils.data as data
 from torch.utils.tensorboard import SummaryWriter
+
 
 seed = 73
 random.seed(seed)
@@ -28,13 +29,17 @@ logging.basicConfig(level=logging.INFO)
 # Some global parameter
 learning_rate = 2e-4
 n_epoch = 150
-batch_size = 64
-early_stop = 50
-w_r = 1.0
+batch_size = 32
+early_stop = 80
+w_r = 0.0
 w_t = 1.0
 data_folder = '/home/luben/data/pdc/logs_proto/insertion_2021-04-30'
 checkpoint_dir = os.path.join(os.path.dirname(__file__), 'ckpnt')
 checkpoints_best_file_path = os.path.join(checkpoint_dir, 'checkpoints_best.pth')
+
+resnet_num_layers = 18
+image_channels = 4
+
 
 def train():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -51,14 +56,17 @@ def train():
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
     valid_loader = DataLoader(valid_set, batch_size=batch_size, shuffle=True)
 
-    model = Model()
+    model = Model(resnet_layers=resnet_num_layers, in_channel=image_channels)
     if os.path.isfile(checkpoints_best_file_path):
         model.load_state_dict(torch.load(checkpoints_best_file_path))
+    else:
+        init_from_modelzoo(model=model, resnet_num_layers=resnet_num_layers, image_channels=image_channels)
+        print('init from modelzoo !')
     model.to(device)
 
     # root mean square error loss
-    criterion = RMSELoss()
-
+    criterion_rmse = RMSELoss()
+    criterion_cos = torch.nn.CosineSimilarity(dim=1)
     # The optimizer and scheduler
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     #scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [60, 90], gamma=0.1)
@@ -84,8 +92,8 @@ def train():
         progress = tqdm(train_loader, desc='train epoch {:d}'.format(epoch), leave = False)
         for idx, (rgbd, gt_r, gt_t) in enumerate(progress):
             out_r, out_t = model(rgbd.to(device))
-            loss_r = criterion(out_r, gt_r.to(device))
-            loss_t = criterion(out_t, gt_t.to(device))
+            loss_r = criterion_rmse(out_r, gt_r.to(device))
+            loss_t = (1-criterion_cos(out_t, gt_t.to(device))).mean()
             loss = loss_r * w_r + loss_t * w_t
             optimizer.zero_grad()
             loss.backward()
@@ -114,8 +122,8 @@ def train():
         with torch.no_grad():
             for idx, (rgbd, gt_r, gt_t) in enumerate(progress):
                 out_r, out_t = model(rgbd.to(device))
-                loss_r = criterion(out_r, gt_r.to(device))
-                loss_t = criterion(out_t, gt_t.to(device))
+                loss_r = criterion_rmse(out_r, gt_r.to(device))
+                loss_t = (1-criterion_cos(out_t, gt_t.to(device))).mean()
                 loss = loss_r * w_r + loss_t * w_t
                 progress.set_postfix({'loss': loss.item(), 'loss_r': loss_r.item(), 'loss_t': loss_t.item()})
                 valid_loss.append(loss.item())

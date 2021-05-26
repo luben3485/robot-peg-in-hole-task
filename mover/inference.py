@@ -10,7 +10,9 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 class MoveInference():
     def __init__(self, checkpoints_file_path):
         assert os.path.exists(checkpoints_file_path)
-        self.model = Model()
+        resnet_num_layers = 18
+        image_channels = 4
+        self.model = Model(resnet_layers=resnet_num_layers, in_channel=image_channels)
         self.model.load_state_dict(torch.load(checkpoints_file_path))
         self.model.to(device)
 

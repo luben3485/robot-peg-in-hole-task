@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 from torchvision.models.resnet import BasicBlock, Bottleneck
 from .utils import compute_rotation_matrix_from_ortho6d
+from torch.utils import model_zoo
+from torchvision.models.resnet import model_urls
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # The specification of resnet
@@ -25,7 +27,7 @@ class ResNetBackbone(nn.Module):
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512 * block.expansion, out_channel)
+        #self.fc = nn.Linear(512 * block.expansion, out_channel)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -64,31 +66,79 @@ class ResNetBackbone(nn.Module):
         x = self.layer4(x)
 
         x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.fc(x)
+        #x = torch.flatten(x, 1)
+        #x = self.fc(x)
 
         return x
 
 class Model(nn.Module):
-    def __init__(self, resnet_layers=34, in_channel=4):
+    def __init__(self, resnet_layers=34, in_channel=4, out_channel=9):
         super(Model, self).__init__()
         block_type, layers, channels, name = resnet_spec[resnet_layers]
-        self.backbone_net = ResNetBackbone(block_type, layers, in_channel=in_channel, out_channel=9)
-        '''
+        self.backbone_net = ResNetBackbone(block_type, layers, in_channel=in_channel, out_channel=out_channel)
         self.mlp = nn.Sequential(
-            nn.Linear(3 * 3, self.inner_size),
+            nn.Linear(512, 100),
             nn.LeakyReLU(),
-            nn.Linear(self.inner_size, self.inner_size),
+            nn.Linear(100, 60),
             nn.LeakyReLU(),
-            nn.Linear(self.inner_size, self.out_channel)
+            nn.Linear(60, out_channel)
         )
-        '''
+
     def forward(self, x):
         x = self.backbone_net(x)
+        x = torch.flatten(x, 1)
+        x = self.mlp(x)
         out_r_6d = x[:, 0:6]
         out_r = compute_rotation_matrix_from_ortho6d(out_r_6d) # batch*3*3
         out_t = x[:, 6:9].view(-1,3,1) # batch*3*1
         return out_r, out_t
+
+def initialize_backbone_from_modelzoo(
+        backbone,  # type: ResNetBackbone,
+        resnet_num_layers,  # type: int
+        image_channels,  # type: int
+    ):
+    assert image_channels == 2 or image_channels == 3 or image_channels == 4
+    _, _, _, name = resnet_spec[resnet_num_layers]
+    org_resnet = model_zoo.load_url(model_urls[name])
+    # Drop orginal resnet fc layer, add 'None' in case of no fc layer, that will raise error
+    org_resnet.pop('fc.weight', None)
+    org_resnet.pop('fc.bias', None)
+    # Load the backbone
+    if image_channels is 3:
+        backbone.load_state_dict(org_resnet)
+    elif image_channels is 2:
+        # Modify the first conv
+        conv1_weight_old = org_resnet['conv1.weight']
+        avg_weight = conv1_weight_old.mean(dim=1, keepdim=False)
+        conv1_weight = torch.zeros((64, 2, 7, 7))
+        conv1_weight[:, 0, :, :] = avg_weight
+        conv1_weight[:, 1, :, :] = avg_weight
+        org_resnet['conv1.weight'] = conv1_weight
+        # Load it
+        backbone.load_state_dict(org_resnet)
+    elif image_channels is 4:
+        # Modify the first conv
+        conv1_weight_old = org_resnet['conv1.weight']
+        conv1_weight = torch.zeros((64, 4, 7, 7))
+        conv1_weight[:, 0:3, :, :] = conv1_weight_old
+        avg_weight = conv1_weight_old.mean(dim=1, keepdim=False)
+        conv1_weight[:, 3, :, :] = avg_weight
+        org_resnet['conv1.weight'] = conv1_weight
+        # Load it
+        backbone.load_state_dict(org_resnet)
+
+
+def init_from_modelzoo(
+        model,  # type: Model,
+        resnet_num_layers,  # type: int,
+        image_channels, # type: int,
+    ):
+    initialize_backbone_from_modelzoo(
+        model.backbone_net,
+        resnet_num_layers,
+        image_channels)
+
 
 def test():
     model = Model()
@@ -97,5 +147,3 @@ def test():
     print(model)
     print(out_r.size())
     print(out_t.size())
-
-test()
