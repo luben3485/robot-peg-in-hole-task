@@ -33,7 +33,7 @@ batch_size = 32
 early_stop = 80
 w_r = 0.0
 w_t = 1.0
-data_folder = '/home/luben/data/pdc/logs_proto/insertion_2021-04-30'
+data_folder = '/home/luben/data/pdc/logs_proto/insertion_2021-05-25'
 checkpoint_dir = os.path.join(os.path.dirname(__file__), 'ckpnt')
 checkpoints_best_file_path = os.path.join(checkpoint_dir, 'checkpoints_best.pth')
 
