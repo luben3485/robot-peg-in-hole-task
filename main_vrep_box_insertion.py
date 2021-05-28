@@ -33,7 +33,7 @@ def quaternion_matrix(quaternion):
 def main():
     rob_arm = SingleRoboticArm()
     init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-    netpath = '/home/luben/robot-peg-in-hole-task/mankey/experiment/box_ckpnt_grayscale/checkpoint-100.pth'
+    netpath = '/home/luben/robot-peg-in-hole-task/mankey/experiment/box_ckpnt_grayscale_fix/checkpoint-100.pth'
     kp_detection = KeypointDetection(netpath)
     choose_hole = 0
     bbox = np.array([0, 0, 255, 255])
@@ -52,7 +52,8 @@ def main():
     rob_arm.movement(hole_check_pose)
 
     # detect empty hole
-    cam_name = 'vision_eye'
+    #cam_name = 'vision_eye'
+    cam_name = 'vision_fix'
     rgb = rob_arm.get_rgb(cam_name=cam_name)
     depth = rob_arm.get_depth(cam_name=cam_name, near_plane=0.01, far_plane=1.5)
 
@@ -100,7 +101,7 @@ def main():
         cnt += 1
         robot_pose = rob_arm.get_object_matrix('UR5_ikTip')
 
-        cam_name = 'vision_eye'
+
         rgb = rob_arm.get_rgb(cam_name=cam_name)
         depth = rob_arm.get_depth(cam_name=cam_name, near_plane=0.01, far_plane=1.5)
 
@@ -143,10 +144,9 @@ def main():
         print('err vector', err)
 
 
-
         dis = math.sqrt(math.pow(err[0], 2) + math.pow(err[1], 2))
         print('Distance:', dis)
-        if cnt>= 100 :
+        if cnt>= 0 :
             kp_detection.visualize(cv_rgb=rgb, cv_depth=depth_mm, keypoints=camera_keypoint)
 
         tilt = False

@@ -6,7 +6,7 @@ import random
 
 def main():
     rob_arm = SingleRoboticArm()
-    checkpoints_file_path = 'mover/ckpnt/checkpoints_best.pth'
+    checkpoints_file_path = 'mover/ckpnt_rmse/checkpoints_best.pth'
     mover = MoveInference(checkpoints_file_path)
 
     # gt grasp
@@ -23,8 +23,8 @@ def main():
     delta_y = 0.06
     delta_z = random.uniform(0.12, 0.17)
     gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-    gripper_pose[0, 3] = hole_keypoint_bottom_pose[0, 3]
-    gripper_pose[1, 3] = hole_keypoint_bottom_pose[1, 3]
+    gripper_pose[0, 3] = hole_keypoint_bottom_pose[0, 3] + delta_x
+    gripper_pose[1, 3] = hole_keypoint_bottom_pose[1, 3] + delta_y
     gripper_pose[2, 3] = hole_keypoint_bottom_pose[2, 3] + 0.134 + delta_z
 
     rob_arm.movement(gripper_pose)
@@ -43,7 +43,7 @@ def main():
         robot_pose = rob_arm.get_object_matrix('UR5_ikTip')
         rot_matrix = np.dot(r, robot_pose[:3, :3])
         #robot_pose[:3, :3] = rot_matrix
-        robot_pose[:3, 3] += t*0.05
+        robot_pose[:3, 3] += t*0.5
         print(robot_pose)
         rob_arm.movement(robot_pose)
     rob_arm.finish()

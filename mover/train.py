@@ -93,7 +93,8 @@ def train():
         for idx, (rgbd, gt_r, gt_t) in enumerate(progress):
             out_r, out_t = model(rgbd.to(device))
             loss_r = criterion_rmse(out_r, gt_r.to(device))
-            loss_t = (1-criterion_cos(out_t, gt_t.to(device))).mean()
+            #loss_t = (1-criterion_cos(out_t, gt_t.to(device))).mean()
+            loss_t = criterion_rmse(out_t, gt_t.to(device))
             loss = loss_r * w_r + loss_t * w_t
             optimizer.zero_grad()
             loss.backward()
@@ -123,7 +124,8 @@ def train():
             for idx, (rgbd, gt_r, gt_t) in enumerate(progress):
                 out_r, out_t = model(rgbd.to(device))
                 loss_r = criterion_rmse(out_r, gt_r.to(device))
-                loss_t = (1-criterion_cos(out_t, gt_t.to(device))).mean()
+                #loss_t = (1-criterion_cos(out_t, gt_t.to(device))).mean()
+                loss_t = criterion_rmse(out_t, gt_t.to(device))
                 loss = loss_r * w_r + loss_t * w_t
                 progress.set_postfix({'loss': loss.item(), 'loss_r': loss_r.item(), 'loss_t': loss_t.item()})
                 valid_loss.append(loss.item())

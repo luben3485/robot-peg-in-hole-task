@@ -312,12 +312,12 @@ def main():
     rob_arm = SingleRoboticArm()
     data_root = '/home/luben/data/pdc/logs_proto'
     date = '2021-05-27'
-    anno_data = 'box_insertion_' + date + '/processed'
-    im_data = 'box_insertion_' + date + '/processed/images'
+    anno_data = 'box_insertion_fix_' + date + '/processed'
+    im_data = 'box_insertion_fix_' + date + '/processed/images'
     anno_data_path = os.path.join(data_root, anno_data)
     im_data_path = os.path.join(data_root, im_data)
-    cam_name = 'vision_eye'
-
+    # cam_name = 'vision_eye'
+    cam_name = 'vision_fix'
 
     # create folder
     cwd = os.getcwd()
@@ -328,7 +328,7 @@ def main():
 
     info_dic = {}
     cnt = 0
-    iter = 5
+    iter = 300
     gripper_init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
 
     origin_peg_pos_list = []
@@ -340,10 +340,20 @@ def main():
         origin_peg_pos_list.append(origin_peg_pos)
         origin_peg_quat_list.append(origin_peg_quat)
 
+    origin_box_pose = rob_arm.get_object_matrix('box1')
+    origin_box_pos = origin_box_pose[:3, 3]
+    origin_box_quat = rob_arm.get_object_quat('box1')
 
+    origin_cam_pose = rob_arm.get_object_matrix(cam_name)
+    origin_cam_pos = origin_cam_pose[:3, 3]
+    origin_cam_quat = rob_arm.get_object_quat(cam_name)
 
     for i in range(iter):
         # init pos of peg and hole
+        rob_arm.set_object_position('box1', origin_box_pos)
+        rob_arm.set_object_quat('box1', origin_box_quat)
+        rob_arm.set_object_position(cam_name, origin_cam_pos)
+        rob_arm.set_object_quat(cam_name, origin_cam_quat)
         for i in range(6):
             rob_arm.set_object_position('peg_large'+str(i), origin_peg_pos_list[i])
             rob_arm.set_object_quat('peg_large'+str(i), origin_peg_quat_list[i])
@@ -373,7 +383,31 @@ def main():
         peg = 'peg_large' + str(peg_idx)
         hole = 'container' + str(peg_idx)
 
+        #random move&rotate the camera
+        cam_pose = rob_arm.get_object_matrix(cam_name)
+        cam_pos = cam_pose[:3, 3]
+        delta_x = random.uniform(-0.04, 0.04)
+        delta_y = random.uniform(-0.04, 0.04)
+        cam_pos[0] += delta_x
+        cam_pos[1] += delta_y
+        rob_arm.set_object_position(cam_name, cam_pos)
+        cam_tilt_degree = 3
+        rot_dir = np.random.normal(size=(3,))
+        rot_dir = rot_dir / np.linalg.norm(rot_dir)
+        print(rot_dir)
+        w = math.cos(math.radians(cam_tilt_degree / 2))
+        x = math.sin(math.radians(cam_tilt_degree / 2)) * rot_dir[0]
+        y = math.sin(math.radians(cam_tilt_degree / 2)) * rot_dir[1]
+        z = math.sin(math.radians(cam_tilt_degree / 2)) * rot_dir[2]
+        cam_rot_quat = [w, x, y, z]
+        cam_quat = rob_arm.get_object_quat(cam_name) # [x,y,z,w]
+        cam_quat = [cam_quat[3], cam_quat[0], cam_quat[1], cam_quat[2]]   # change to [w,x,y,z]
+        cam_quat = qmult(cam_rot_quat, cam_quat) #[w,x,y,z]
+        cam_quat = [cam_quat[1], cam_quat[2], cam_quat[3], cam_quat[0]] # change to [x,y,z,w]
+        rob_arm.set_object_quat(cam_name, cam_quat)
 
+
+        # gt grasp
         peg_keypoint_pose = rob_arm.get_object_matrix(obj_name=peg_top)
         grasp_pose = peg_keypoint_pose.copy()
         grasp_pose[0, 3] += 0.0095

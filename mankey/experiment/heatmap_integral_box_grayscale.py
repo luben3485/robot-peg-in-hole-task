@@ -28,9 +28,9 @@ def construct_dataset(is_train: bool) -> (torch.utils.data.Dataset, SupervisedKe
     db_config.keypoint_yaml_name = 'peg_in_hole.yaml'
     db_config.pdc_data_root = '/home/luben/data/pdc'
     if is_train:
-        db_config.config_file_path = '/home/luben/robot-peg-in-hole-task/mankey/config/box_insertion_20210509.txt'
+        db_config.config_file_path = '/home/luben/robot-peg-in-hole-task/mankey/config/box_insertion_20210527.txt'
     else:
-        db_config.config_file_path = '/home/luben/robot-peg-in-hole-task/mankey/config/box_insertion_20210509.txt'
+        db_config.config_file_path = '/home/luben/robot-peg-in-hole-task/mankey/config/box_insertion_20210527.txt'
     database = SpartanSupervisedKeypointDatabase(db_config)
 
     # Construct torch dataset
@@ -186,8 +186,8 @@ def train(checkpoint_dir: str, start_from_ckpnt: str = '', save_epoch_offset: in
 
 if __name__ == '__main__':
     
-    checkpoint_dir = os.path.join(os.path.dirname(__file__), 'box_ckpnt_grayscale')
-    net_path = 'box_ckpnt_grayscale/checkpoint-100.pth'
+    checkpoint_dir = os.path.join(os.path.dirname(__file__), 'box_ckpnt_grayscale_fix')
+    net_path = 'box_ckpnt_grayscale_fix/checkpoint-100.pth'
     
     start_time = time.time()
     train(checkpoint_dir=checkpoint_dir)
