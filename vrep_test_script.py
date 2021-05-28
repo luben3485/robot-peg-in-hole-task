@@ -3,7 +3,7 @@ import numpy as np
 
 def main():
     rob_arm = SingleRoboticArm()
-    cam_name = 'vision_sensor'
+    cam_name = 'vision_fix'
     #extrinsic = rob_arm.get_camera_matrix(cam_name=cam_name)
     #print(extrinsic)
     #intrinsic = rob_arm.get_intrinsic_matrix()
@@ -28,6 +28,7 @@ def main():
     rob_arm.movement(gripper_pose)
     '''
 
+    '''
     init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
 
     cam_name = 'vision_sensor_gdn'
@@ -54,7 +55,7 @@ def main():
 
     rob_arm.movement(step_2_pose)
     rob_arm.open_gripper(True)
-
+    '''
     rob_arm.finish()
 
 

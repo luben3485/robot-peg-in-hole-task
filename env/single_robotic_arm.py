@@ -19,7 +19,7 @@ import math
 import time
 from transforms3d.quaternions import mat2quat
 
-from env.gdn_grasp.grasp_candidate import Grasper
+#from env.gdn_grasp.grasp_candidate import Grasper
 
 def quaternion_matrix(quaternion):
     """Return homogeneous rotation matrix from quaternion.
