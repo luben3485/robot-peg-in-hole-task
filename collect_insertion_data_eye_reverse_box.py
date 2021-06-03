@@ -310,8 +310,8 @@ def random_gripper_xy(hole_pos):
 
 def main():
     rob_arm = SingleRoboticArm()
-    data_root = '/home/luben/data/pdc/logs_proto'
-    date = '2021-05-27'
+    data_root = '/Users/cmlab/data/pdc/logs_proto'
+    date = '2021-05-29'
     anno_data = 'box_insertion_' + date + '/processed'
     im_data = 'box_insertion_' + date + '/processed/images'
     anno_data_path = os.path.join(data_root, anno_data)
@@ -328,7 +328,7 @@ def main():
 
     info_dic = {}
     cnt = 0
-    iter = 5
+    iter = 300
     gripper_init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
 
     origin_peg_pos_list = []

@@ -310,8 +310,8 @@ def random_gripper_xy(hole_pos):
 
 def main():
     rob_arm = SingleRoboticArm()
-    data_root = '/home/luben/data/pdc/logs_proto'
-    date = '2021-05-27'
+    data_root = '/Users/cmlab/data/pdc/logs_proto'
+    date = '2021-05-29'
     anno_data = 'box_insertion_fix_' + date + '/processed'
     im_data = 'box_insertion_fix_' + date + '/processed/images'
     anno_data_path = os.path.join(data_root, anno_data)

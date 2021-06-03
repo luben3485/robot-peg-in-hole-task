@@ -6,7 +6,7 @@ import random
 
 def main():
     rob_arm = SingleRoboticArm()
-    checkpoints_file_path = 'mover/ckpnt_rmse/checkpoints_best.pth'
+    checkpoints_file_path = 'mover/ckpnt_cos_0530/checkpoint-100.pth'
     mover = MoveInference(checkpoints_file_path)
 
     # gt grasp
@@ -43,7 +43,11 @@ def main():
         robot_pose = rob_arm.get_object_matrix('UR5_ikTip')
         rot_matrix = np.dot(r, robot_pose[:3, :3])
         #robot_pose[:3, :3] = rot_matrix
-        robot_pose[:3, 3] += t*0.5
+        if i <= 6:
+            robot_pose[:3, 3] += t * 0.2
+        else:
+            robot_pose[:3, 3] += t * 0.1
+
         print(robot_pose)
         rob_arm.movement(robot_pose)
     rob_arm.finish()

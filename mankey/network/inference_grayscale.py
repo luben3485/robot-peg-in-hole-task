@@ -8,7 +8,7 @@ import mankey.network.resnet_nostage as resnet_nostage
 import mankey.network.hourglass_staged as hourglass_staged
 import mankey.network.predict as predict
 
-
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # The construction of network
 def construct_resnet_nostage(chkpt_path):
     # type: (str) -> (resnet_nostage.ResnetNoStage, resnet_nostage.ResnetNoStageConfig)
@@ -20,7 +20,7 @@ def construct_resnet_nostage(chkpt_path):
     :return: (ResnetNoStage, ResnetNoStageConfig)
     """
     # The state dict of the network
-    state_dict = torch.load(chkpt_path)
+    state_dict = torch.load(chkpt_path, map_location=torch.device('cpu'))
     n_keypoint = state_dict['head_net.features.9.weight'].shape[0] // 2
     print('n_keypoint',n_keypoint)
     print(state_dict['head_net.features.9.weight'].shape[0])
@@ -36,7 +36,8 @@ def construct_resnet_nostage(chkpt_path):
 
     # Load the network
     network.load_state_dict(state_dict)
-    network.cuda()
+    #network.cuda()
+    network.to(device)
     network.eval()
     return network, net_config
 
@@ -204,7 +205,8 @@ def inference_resnet_nostage(
     # Upload the image
     stacked_rgbd = torch.from_numpy(imgproc_out.stacked_rgbd)
     stacked_rgbd = torch.unsqueeze(stacked_rgbd, dim=0)
-    stacked_rgbd = stacked_rgbd.cuda()
+    #stacked_rgbd = stacked_rgbd.cuda()
+    stacked_rgbd = stacked_rgbd.to(device)
 
     # Do forward
     raw_pred = network(stacked_rgbd)
@@ -216,7 +218,8 @@ def inference_resnet_nostage(
     heatmap = predict.heatmap_from_predict(prob_pred, num_keypoints)
     #np.save('heatmap_0304.npy',heatmap.cpu().detach().numpy())
     # regression
-    coord_x, coord_y = predict.heatmap2d_to_normalized_imgcoord_gpu(heatmap, num_keypoints)
+    #coord_x, coord_y = predict.heatmap2d_to_normalized_imgcoord_gpu(heatmap, num_keypoints)
+    coord_x, coord_y = predict.heatmap2d_to_normalized_imgcoord_cpu(heatmap, num_keypoints)
     # coord_x (1,2,1)
 
     # argmax

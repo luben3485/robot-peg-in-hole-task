@@ -33,7 +33,7 @@ def quaternion_matrix(quaternion):
 def main():
     rob_arm = SingleRoboticArm()
     init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-    netpath = '/home/luben/robot-peg-in-hole-task/mankey/experiment/box_ckpnt_grayscale_fix/checkpoint-100.pth'
+    netpath = '/Users/cmlab/robot-peg-in-hole-task/mankey/experiment/box_fix_ckpnt_grayscale/checkpoint-100.pth'
     kp_detection = KeypointDetection(netpath)
     choose_hole = 0
     bbox = np.array([0, 0, 255, 255])
@@ -47,10 +47,10 @@ def main():
         print('remove peg_idx:{:d}'.format(v))
         rob_arm.set_object_position('peg_large' + str(v), [2, 0.2 * i, 0.1])
         peg_list.pop(peg_list.index(v))
-
+    '''
     hole_check_pose = rob_arm.get_object_matrix(obj_name='hole_check')
     rob_arm.movement(hole_check_pose)
-
+    '''
     # detect empty hole
     #cam_name = 'vision_eye'
     cam_name = 'vision_fix'
@@ -87,7 +87,10 @@ def main():
     rob_arm.gt_run_grasp(grasp_pose)
     grasp_pose[2, 3] += 0.24
     rob_arm.movement(grasp_pose)
-
+    grasp_pose[0, 3] -= 0.2
+    rob_arm.movement(grasp_pose)
+    #fix_init_pose = rob_arm.get_object_matrix(obj_name='fix_init')
+    #rob_arm.movement(fix_init_pose)
 
     print('servoing...')
     err_tolerance = 0.08
@@ -146,7 +149,7 @@ def main():
 
         dis = math.sqrt(math.pow(err[0], 2) + math.pow(err[1], 2))
         print('Distance:', dis)
-        if cnt>= 0 :
+        if cnt>= 100 :
             kp_detection.visualize(cv_rgb=rgb, cv_depth=depth_mm, keypoints=camera_keypoint)
 
         tilt = False

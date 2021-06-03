@@ -10,15 +10,15 @@ num = '001768'
 parser = argparse.ArgumentParser()
 parser.add_argument('--net_path', type=str,
                     #default='/home/luben/data/trained_model/keypoint/mug/checkpoint-135.pth',
-                    default='/home/luben/robot-peg-in-hole-task/mankey/experiment/ckpnt_0328/checkpoint-100.pth',
+                    default='/Users/cmlab/robot-peg-in-hole-task/mankey/experiment/box_ckpnt_grayscale/checkpoint-100.pth',
                     help='The absolute path to network checkpoint')
 parser.add_argument('--cv_rgb_path', type=str,
                     #default='/home/luben/robotic-arm-task-oriented-manipulation/test_data/000000_rgb.png',
-                    default='/home/luben/data/pdc/logs_proto/insertion_2021-03-22/processed/images/'+ num + '_rgb.png',
+                    default='/Users/cmlab/data/pdc/logs_proto/box_insertion_2021-05-29/processed/images/'+ num + '_rgb.png',
                     help='The absolute path to rgb image')
 parser.add_argument('--cv_depth_path', type=str,
                     #default='/home/luben/robotic-arm-task-oriented-manipulation/test_data/000000_depth.png',
-                    default='/home/luben/data/pdc/logs_proto/insertion_2021-03-22/processed/images/'+ num +'_depth.png',
+                    default='/Users/cmlab/data/pdc/logs_proto/box_insertion_2021-05-29/processed/images/'+ num +'_depth.png',
                     help='The absolute path to depth image')
 
 class KeypointDetection(object):
@@ -61,6 +61,7 @@ class KeypointDetection(object):
         _, camera_keypoint = inference_grayscale.get_3d_prediction(
             keypointxy_depth_realunit,
             imgproc_out.bbox2patch)
+
         return camera_keypoint, keypointxy_depth_realunit
 
     def visualize(self, keypoints, cv_rgb=None, cv_depth=None, cv_rgb_path='', cv_depth_path=''):
@@ -92,6 +93,7 @@ class KeypointDetection(object):
         #    for keypoint in keypoints:
         #        f.write(' '.join(['%.8f' % k for k in keypoint]))
         #        f.write('\n')
+
         for keypoint in keypoints:
             keypoints_coords \
                 = o3d.geometry.TriangleMesh.create_coordinate_frame(
@@ -105,7 +107,7 @@ def main(netpath, rgb, depth):
     kp_detection = KeypointDetection(netpath)
     #bbox = np.array([261, 194, 66, 66])
     bbox = np.array([0, 0, 255, 255])
-    camera_keypoint = kp_detection.inference(cv_rgb_path=rgb, cv_depth_path=depth, bbox=bbox)
+    camera_keypoint, keypointxy_depth_realunit = kp_detection.inference(cv_rgb_path=rgb, cv_depth_path=depth, bbox=bbox)
     print(camera_keypoint)
     kp_detection.visualize(cv_rgb_path=rgb, cv_depth_path=depth, keypoints=camera_keypoint)
    

@@ -13,7 +13,7 @@ class MoveInference():
         resnet_num_layers = 18
         image_channels = 4
         self.model = Model(resnet_layers=resnet_num_layers, in_channel=image_channels)
-        self.model.load_state_dict(torch.load(checkpoints_file_path))
+        self.model.load_state_dict(torch.load(checkpoints_file_path, map_location=torch.device('cpu')))
         self.model.to(device)
 
 
