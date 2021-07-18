@@ -71,7 +71,7 @@ class RobotDataset(Dataset):
         return anno_list
 
 if __name__ == '__main__' :
-    data_folder = '/home/luben/data/pdc/logs_proto/insertion_2021-05-01'
+    data_folder = '/tmp2/r09944001/data/pdc/logs_proto/xyz_track_curve_insertion_2021-06-20'
     '''
     transforms = transforms.Compose([
         transforms.CenterCrop(10),

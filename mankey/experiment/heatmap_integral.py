@@ -1,10 +1,12 @@
 import torch
 import os
+os.environ['CUDA_VISIBLE_DEVICES']='0'
 import random
 from torch.utils.data import DataLoader
 import time
 import sys
-sys.path.append('/home/luben/robot-peg-in-hole-task')
+sys.path.append('/tmp2/r09944001/robot-peg-in-hole-task')
+
 
 from mankey.network.resnet_nostage import ResnetNoStageConfig, ResnetNoStage, init_from_modelzoo
 from mankey.network.weighted_loss import weighted_mse_loss, weighted_l1_loss
@@ -26,11 +28,11 @@ def construct_dataset(is_train: bool) -> (torch.utils.data.Dataset, SupervisedKe
     db_config = SpartanSupvervisedKeypointDBConfig()
     #db_config.keypoint_yaml_name = 'mug_3_keypoint_image.yaml'
     db_config.keypoint_yaml_name = 'peg_in_hole.yaml'
-    db_config.pdc_data_root = '/home/luben/data/pdc'
+    db_config.pdc_data_root = '/tmp2/r09944001/data/pdc'
     if is_train:
-        db_config.config_file_path = '/home/luben/robot-peg-in-hole-task/mankey/config/insertion_20210420.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20210717.txt'
     else:
-        db_config.config_file_path = '/home/luben/robot-peg-in-hole-task/mankey/config/insertion_20210420.txt'
+        db_config.config_file_path = '/tmp2/r90944001/robot-peg-in-hole-task/mankey/config/insertion_20210717.txt'
     database = SpartanSupervisedKeypointDatabase(db_config)
 
     # Construct torch dataset
@@ -186,8 +188,8 @@ def train(checkpoint_dir: str, start_from_ckpnt: str = '', save_epoch_offset: in
 
 if __name__ == '__main__':
     
-    checkpoint_dir = os.path.join(os.path.dirname(__file__), 'ckpnt1')
-    net_path = 'ckpnt1/checkpoint-100.pth'
+    checkpoint_dir = os.path.join(os.path.dirname(__file__), 'ckpnt_xyzrot_0717')
+    net_path = 'ckpnt_xyzrot_0717/checkpoint-100.pth'
     
     start_time = time.time()
     train(checkpoint_dir=checkpoint_dir)

@@ -1,4 +1,5 @@
 import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '5'
 import time
 import random
 import logging
@@ -33,7 +34,7 @@ batch_size = 32
 early_stop = 80
 w_r = 0.0
 w_t = 1.0
-data_folder = '/home/luben/data/pdc/logs_proto/insertion_2021-05-25'
+data_folder = '/tmp2/r09944001/data/pdc/logs_proto/xyz_track_insertion_2021-05-30'
 checkpoint_dir = os.path.join(os.path.dirname(__file__), 'ckpnt')
 checkpoints_best_file_path = os.path.join(checkpoint_dir, 'checkpoints_best.pth')
 
@@ -93,8 +94,8 @@ def train():
         for idx, (rgbd, gt_r, gt_t) in enumerate(progress):
             out_r, out_t = model(rgbd.to(device))
             loss_r = criterion_rmse(out_r, gt_r.to(device))
-            #loss_t = (1-criterion_cos(out_t, gt_t.to(device))).mean()
-            loss_t = criterion_rmse(out_t, gt_t.to(device))
+            loss_t = (1-criterion_cos(out_t, gt_t.to(device))).mean()
+            #loss_t = criterion_rmse(out_t, gt_t.to(device))
             loss = loss_r * w_r + loss_t * w_t
             optimizer.zero_grad()
             loss.backward()
@@ -124,8 +125,8 @@ def train():
             for idx, (rgbd, gt_r, gt_t) in enumerate(progress):
                 out_r, out_t = model(rgbd.to(device))
                 loss_r = criterion_rmse(out_r, gt_r.to(device))
-                #loss_t = (1-criterion_cos(out_t, gt_t.to(device))).mean()
-                loss_t = criterion_rmse(out_t, gt_t.to(device))
+                loss_t = (1-criterion_cos(out_t, gt_t.to(device))).mean()
+                #loss_t = criterion_rmse(out_t, gt_t.to(device))
                 loss = loss_r * w_r + loss_t * w_t
                 progress.set_postfix({'loss': loss.item(), 'loss_r': loss_r.item(), 'loss_t': loss_t.item()})
                 valid_loss.append(loss.item())
