@@ -5,3 +5,6 @@
 /mankey/experiment/box_fix_ckpnt*
 /mankey/experiment/runs
 /mankey/experiment/tmp
+/mrcnn/ckpnt*
+/mrcnn/test1.jpeg
+/mrcnn/proposal-v1.docx

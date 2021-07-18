@@ -64,7 +64,7 @@ class SingleRoboticArm():
         time.sleep(1)
         self.emptyBuff = bytearray()
 
-        sim_ret, self.robot_handle = vrep.simxGetObjectHandle(self.clientID, "UR5", vrep.simx_opmode_oneshot_wait)
+        sim_ret, self.robot_handle = vrep.simxGetObjectHandle(self.clientID, "UR5#", vrep.simx_opmode_oneshot_wait)
         sim_ret, self.cam_handle = vrep.simxGetObjectHandle(self.clientID, "Vision_sensor", vrep.simx_opmode_oneshot_wait)
         
         
@@ -208,6 +208,7 @@ class SingleRoboticArm():
         return grasp_list
 
     def naive_angle_grasp(self, rgb_img, depth_img, cam_name='Vision_sensor', show_bbox=False):
+        self.enableIK(1)
 
         img_gray = cv2.cvtColor(rgb_img, cv2.COLOR_RGB2GRAY)
         ret, thresh = cv2.threshold(img_gray, 127, 255, 0)
@@ -309,6 +310,7 @@ class SingleRoboticArm():
             cv2.waitKey(5000)
 
     def gdn_demo_grasp(self):
+        self.enableIK(1)
 
         cam_name = 'vision_sensor_gdn'
         rgb = self.get_rgb(cam_name=cam_name)
@@ -331,6 +333,7 @@ class SingleRoboticArm():
         self.movement(step_3_pose)
 
     def run_single_grasp(self, grasp, use_gdn=True):
+        self.enableIK(1)
 
         if use_gdn:
             grasp_matrix = np.dot(grasp, self.original_matrix_gdn)
@@ -362,7 +365,8 @@ class SingleRoboticArm():
                 running = False
 
     def run_grasp(self, grasp_list, num, use_gdn = True):
-        
+        self.enableIK(1)
+
         if len(grasp_list) == 0:
             print('No any grasp detected!')
         grasp_iter = min(num, len(grasp_list))
@@ -391,6 +395,7 @@ class SingleRoboticArm():
 
     # this function is for main_vrep_angle_insertion and collect_insertion_data_eye_reverse
     def gt_run_grasp(self, grasp_matrix):
+        self.enableIK(1)
         send_matrix = list(grasp_matrix.flatten())[0:12]
         res, retInts, path, retStrings, retBuffer = vrep.simxCallScriptFunction(self.clientID, 'RemoteAPI',vrep.sim_scripttype_childscript,'GraspMovement', [], send_matrix,[], self.emptyBuff,vrep.simx_opmode_oneshot_wait)
         running = True
@@ -401,12 +406,14 @@ class SingleRoboticArm():
 
     
     def get_object_matrix(self, obj_name):
+        #self.enableIK(1)
         sim_ret, object_handle = vrep.simxGetObjectHandle(self.clientID, obj_name, vrep.simx_opmode_oneshot_wait)
         res,retInts, object_matrix,retStrings,retBuffer=vrep.simxCallScriptFunction(self.clientID,'RemoteAPI',vrep.sim_scripttype_childscript,'getObjectPose',[object_handle],[],[],self.emptyBuff,vrep.simx_opmode_oneshot_wait)
         object_matrix = np.array(object_matrix+[0,0,0,1],dtype=np.float64).reshape(4,4)
         return object_matrix
 
     def get_object_quat(self, obj_name):
+        self.enableIK(1)
         sim_ret, object_handle = vrep.simxGetObjectHandle(self.clientID, obj_name, vrep.simx_opmode_oneshot_wait)
         ret, object_quat = vrep.simxGetObjectQuaternion(self.clientID, object_handle, -1, vrep.simx_opmode_oneshot_wait)
         return object_quat
@@ -431,11 +438,12 @@ class SingleRoboticArm():
         res,retInts,path,retStrings,retBuffer = vrep.simxCallScriptFunction(self.clientID,'RemoteAPI',vrep.sim_scripttype_childscript,'Open',[],send_matrix,[],self.emptyBuff,vrep.simx_opmode_oneshot_wait)
         running = True
         while running:
-            res,retInts,retFloats,retStrings,retBuffer=vrep.simxCallScriptFunction(self.clientID,'RemoteAPI',vrep.sim_scripttype_childscript,'isRunning',[],[],['UR5_InsertionMatrix'],self.emptyBuff,vrep.simx_opmode_oneshot_wait)
+            res,retInts,retFloats,retStrings,retBuffer=vrep.simxCallScriptFunction(self.clientID,'RemoteAPI',vrep.sim_scripttype_childscript,'isRunning',[],[],['UR5_Open'],self.emptyBuff,vrep.simx_opmode_oneshot_wait)
             if retInts[0] == 0:
                 running = False
 
     def movement(self, pose_matrix):
+        self.enableIK(1)
         send_matrix = list(pose_matrix.flatten())[0:12]
         res,retInts,path,retStrings,retBuffer = vrep.simxCallScriptFunction(self.clientID,'RemoteAPI',vrep.sim_scripttype_childscript,'Movement',[],send_matrix,[],self.emptyBuff,vrep.simx_opmode_oneshot_wait) 
         running = True
@@ -445,6 +453,7 @@ class SingleRoboticArm():
                 running = False
 
     def insertion(self, pose_matrix):
+        self.enableIK(1)
         send_matrix = list(pose_matrix.flatten())[0:12]
         res,retInts,path,retStrings,retBuffer = vrep.simxCallScriptFunction(self.clientID,'RemoteAPI',vrep.sim_scripttype_childscript,'Insertion',[],send_matrix,[],self.emptyBuff,vrep.simx_opmode_oneshot_wait) 
         running = True
@@ -455,6 +464,7 @@ class SingleRoboticArm():
         
 
     def gt_peg_in_hole_servo(self, target_name, object_name, err_tolerance=0.3, alpha_err=0.9, alpha_target=0.9):
+        self.enableIK(1)
 
         filter_robot_pose = self.get_object_matrix('UR5_ikTip')
         err_rolling, err_size_rolling = None, err_tolerance * 10
@@ -504,3 +514,128 @@ class SingleRoboticArm():
         vrep.simxGetPingTime(self.clientID)
         vrep.simxFinish(self.clientID)
         print('Stop server!')
+
+    def get_joint_position(self):
+        res, retInts, robotCurrentConfig, retStrings, retBuffer = vrep.simxCallScriptFunction(self.clientID,
+                                                                                              'RemoteAPI',
+                                                                                              vrep.sim_scripttype_childscript,
+                                                                                              'getRobotState',
+                                                                                              [self.robot_handle], [], [],
+                                                                                              self.emptyBuff,
+                                                                                          vrep.simx_opmode_oneshot_wait)
+        return robotCurrentConfig
+    def enableIK(self, mode):
+        mode = int(mode)
+        send_matrix = [mode]
+        res, retInts, path, retStrings, retBuffer = vrep.simxCallScriptFunction(self.clientID, 'RemoteAPI',
+                                                                                vrep.sim_scripttype_childscript, 'IK',
+                                                                                [], send_matrix, [], self.emptyBuff,
+                                                                                vrep.simx_opmode_oneshot_wait)
+
+        running = True
+        while running:
+            res, retInts, retFloats, retStrings, retBuffer = vrep.simxCallScriptFunction(self.clientID, 'RemoteAPI',
+                                                                                         vrep.sim_scripttype_childscript,
+                                                                                         'isRunning', [], [],
+                                                                                         ['UR5_IK'],
+                                                                                         self.emptyBuff,
+                                                                                         vrep.simx_opmode_oneshot_wait)
+            if retInts[0] == 0:
+                running = False
+
+    def compute_path_from_joint_space(self, jointConfig, interpolation_states):
+        approachVector = [0, 0, 0]  # often a linear approach is required. This should also be part of the calculations when selecting an appropriate state for a given pose
+        maxConfigsForDesiredPose = 100  # we will try to find 10 different states corresponding to the goal pose and order them according to distance from initial state
+        maxTrialsForConfigSearch = 300  # a parameter needed for finding appropriate goal states
+        searchCount = 8  # how many times OMPL will run for a given task
+        minConfigsForPathPlanningPath = interpolation_states  # interpolation states for the OMPL path
+        minConfigsForIkPath = 100  # interpolation states for the linear approach path
+        collisionChecking = 1  # whether collision checking is on or off
+        inInts = [self.robot_handle, collisionChecking, minConfigsForPathPlanningPath, searchCount]
+
+        res, retInts, robotCurrentConfig, retStrings, retBuffer = vrep.simxCallScriptFunction(self.clientID,
+                                                                                          'RemoteAPI',
+                                                                                          vrep.sim_scripttype_childscript,
+                                                                                          'getRobotState',
+                                                                                          [self.robot_handle], [], [],
+                                                                                          self.emptyBuff,
+                                                                                          vrep.simx_opmode_oneshot_wait)
+        print('robotCurrentConfig', robotCurrentConfig)
+        tryConfig_1 = [-1.0110, -1.1291, 0.7916, 0.3375, 2.1395, 0.7224]
+        inFloats = robotCurrentConfig + jointConfig
+
+        res, retInts, path, retStrings, retBuffer = vrep.simxCallScriptFunction(self.clientID, 'RemoteAPI',
+                                                                            vrep.sim_scripttype_childscript,
+                                                                            'findPath_goalIsState', inInts, inFloats,
+                                                                            [], self.emptyBuff,
+                                                                            vrep.simx_opmode_oneshot_wait)
+        return path
+
+    def run_through_all_path(self, path):
+        if len(path) > 0:
+            for i in range(int(len(path) / 6)):
+                # Make the robot follow the path:
+                print('Now path:' + str(i))
+                subPath = path[i * 6:(i + 1) * 6]
+                res, retInts, retFloats, retStrings, retBuffer = vrep.simxCallScriptFunction(self.clientID, 'RemoteAPI', vrep.sim_scripttype_childscript, 'runThroughPath', [self.robot_handle], subPath, [], self.emptyBuff, vrep.simx_opmode_oneshot_wait)
+                # Wait until the end of the movement:
+                runningPath = True
+                while runningPath:
+                    res, retInts, retFloats, retStrings, retBuffer = vrep.simxCallScriptFunction(self.clientID, 'RemoteAPI', vrep.sim_scripttype_childscript, 'isRunningThroughPath', [self.robot_handle], [], [], self.emptyBuff, vrep.simx_opmode_oneshot_wait)
+                    runningPath = retInts[0] == 1
+                #time.sleep(1)
+
+    def run_through_path(self, path):
+        res, retInts, retFloats, retStrings, retBuffer = vrep.simxCallScriptFunction(self.clientID, 'RemoteAPI',
+                                                                                     vrep.sim_scripttype_childscript,
+                                                                                     'runThroughPath',
+                                                                                     [self.robot_handle], path, [],
+                                                                                     self.emptyBuff,
+                                                                                     vrep.simx_opmode_oneshot_wait)
+        # Wait until the end of the movement:
+        runningPath = True
+        while runningPath:
+            res, retInts, retFloats, retStrings, retBuffer = vrep.simxCallScriptFunction(self.clientID, 'RemoteAPI',
+                                                                                         vrep.sim_scripttype_childscript,
+                                                                                         'isRunningThroughPath',
+                                                                                         [self.robot_handle], [], [],
+                                                                                         self.emptyBuff,
+                                                                                         vrep.simx_opmode_oneshot_wait)
+            runningPath = retInts[0] == 1
+
+    def visualize_path(self, path):
+        # Visualize the path:
+        res, retInts, retFloats, retStrings, retBuffer = vrep.simxCallScriptFunction(self.clientID, 'RemoteAPI',
+                                                                                     vrep.sim_scripttype_childscript,
+                                                                                     'visualizePath',
+                                                                                     [self.robot_handle, 255, 0, 255],
+                                                                                     path, [], self.emptyBuff,
+                                                                                     vrep.simx_opmode_oneshot_wait)
+        lineHandle = retInts[0]
+        return lineHandle
+
+    def clear_path_visualization(self, lineHandle):
+        # Clear the path visualization:
+        res, retInts, retFloats, retStrings, retBuffer = vrep.simxCallScriptFunction(self.clientID, 'RemoteAPI',
+                                                                                     vrep.sim_scripttype_childscript,
+                                                                                     'removeLine', [lineHandle], [], [],
+                                                                                     self.emptyBuff,
+                                                                                     vrep.simx_opmode_oneshot_wait)
+    def enableDynamic(self, obj_name, enable):
+        sim_ret, object_handle = vrep.simxGetObjectHandle(self.clientID, obj_name, vrep.simx_opmode_oneshot_wait)
+        enable = int(enable)
+        inInts = [object_handle, enable]
+        res, retInts, retFloats, retStrings, retBuffer = vrep.simxCallScriptFunction(self.clientID, 'RemoteAPI',
+                                                                                   vrep.sim_scripttype_childscript,
+                                                                                   'enableDynamic', inInts, [],
+                                                                                   [], self.emptyBuff,
+                                                                                   vrep.simx_opmode_oneshot_wait)
+    def setObjectParent(self, obj_name, obj_parent_name):
+        sim_ret, object_handle = vrep.simxGetObjectHandle(self.clientID, obj_name, vrep.simx_opmode_oneshot_wait)
+        sim_ret, object_parent_handle = vrep.simxGetObjectHandle(self.clientID, obj_parent_name, vrep.simx_opmode_oneshot_wait)
+        inInts = [object_handle, object_parent_handle]
+        res, retInts, retFloats, retStrings, retBuffer = vrep.simxCallScriptFunction(self.clientID, 'RemoteAPI',
+                                                                                     vrep.sim_scripttype_childscript,
+                                                                                     'setObjectParent', inInts, [],
+                                                                                     [], self.emptyBuff,
+                                                                                     vrep.simx_opmode_oneshot_wait)

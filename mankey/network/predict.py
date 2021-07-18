@@ -131,6 +131,7 @@ def heatmap2d_to_normalized_imgcoord_cpu(
     _, _, y_dim, x_dim = heatmap.shape
     coord_x, coord_y = heatmap2d_to_imgcoord_cpu(heatmap, num_keypoints)
 
+
     # Normalize it
     coord_x *= float(1.0 / float(x_dim))
     coord_y *= float(1.0 / float(y_dim))
@@ -214,7 +215,7 @@ def heatmap2d_to_imgcoord_argmax(heatmap):  # type: (torch.Tensor) -> (torch.Ten
     # Get the max value and index
     max_val, flat_idx = torch.max(heatmap.view(n_batch, n_keypoint, -1), 2)
     flat_idx_float = flat_idx.float()
-    keypoint_xy_pred = torch.zeros(size=[n_batch, n_keypoint, 2], device=heatmap.get_device())
+    keypoint_xy_pred = torch.zeros(size=[n_batch, n_keypoint, 2])
     keypoint_xy_pred[:, :, 0] = (flat_idx_float - 1) % width
     keypoint_xy_pred[:, :, 1] = torch.floor((flat_idx_float - 1) / width)
     return keypoint_xy_pred, max_val
@@ -233,6 +234,6 @@ def heatmap2d_to_normalized_imgcoord_argmax(heatmap):  # type: (torch.Tensor) ->
     # Normalize it
     coordinate[:, :, 0] *= float(1.0 / float(x_dim))
     coordinate[:, :, 1] *= float(1.0 / float(y_dim))
-    #coordinate[:, :, 0] -= 0.5
-    #coordinate[:, :, 1] -= 0.5
+    coordinate[:, :, 0] -= 0.5
+    coordinate[:, :, 1] -= 0.5
     return coordinate, score

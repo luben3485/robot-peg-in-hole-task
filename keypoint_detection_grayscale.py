@@ -6,20 +6,24 @@ import os
 import numpy as np
 import cv2
 import open3d as o3d
-num = '001768'
+from bbox_detector import BboxDetection
+
+num = '000047'
 parser = argparse.ArgumentParser()
 parser.add_argument('--net_path', type=str,
                     #default='/home/luben/data/trained_model/keypoint/mug/checkpoint-135.pth',
-                    default='/Users/cmlab/robot-peg-in-hole-task/mankey/experiment/box_ckpnt_grayscale/checkpoint-100.pth',
+                    default='/Users/cmlab/robot-peg-in-hole-task/mankey/experiment/ckpnt_box_fix_2_grayscale/checkpoint-100.pth',
                     help='The absolute path to network checkpoint')
 parser.add_argument('--cv_rgb_path', type=str,
                     #default='/home/luben/robotic-arm-task-oriented-manipulation/test_data/000000_rgb.png',
-                    default='/Users/cmlab/data/pdc/logs_proto/box_insertion_2021-05-29/processed/images/'+ num + '_rgb.png',
+                    default='/Users/cmlab/data/pdc/logs_proto/box_insertion_fix_2_test/processed/images/'+ num + '_rgb.png',
                     help='The absolute path to rgb image')
 parser.add_argument('--cv_depth_path', type=str,
                     #default='/home/luben/robotic-arm-task-oriented-manipulation/test_data/000000_depth.png',
-                    default='/Users/cmlab/data/pdc/logs_proto/box_insertion_2021-05-29/processed/images/'+ num +'_depth.png',
+                    default='/Users/cmlab/data/pdc/logs_proto/box_insertion_fix_2_test/processed/images/'+ num +'_depth.png',
                     help='The absolute path to depth image')
+
+
 
 class KeypointDetection(object):
 
@@ -64,6 +68,33 @@ class KeypointDetection(object):
 
         return camera_keypoint, keypointxy_depth_realunit
 
+    def visualize_2d(self,bbox, keypoints, cv_rgb=None, cv_rgb_path=''):
+        # keypoints : list, shape:(n,x,y,d)
+        if cv_rgb_path != '':
+            img = cv2.imread(cv_rgb_path, cv2.IMREAD_COLOR)
+        else:
+            img = cv_rgb.copy()
+
+        for idx, keypoint in enumerate(keypoints):
+            x = int(keypoint[0])
+            y = int(keypoint[1])
+            if idx % 2 == 0:
+                cv2.circle(img, (x, y), 3, (0, 0, 255), 1)
+            else:
+                cv2.circle(img, (x, y), 3, (255, 0, 0), 1)
+        cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 0, 255), 2)
+
+        # v-rep -> (rotate 180) -> input of keypoint detection network
+        # rotate 180 for recovery
+        (h, w)= img.shape[:2]
+        center = (w / 2, h / 2)
+        M = cv2.getRotationMatrix2D(center, 180, 1.0)
+        img = cv2.warpAffine(img, M, (w, h))
+
+        cv2.imshow('visualize keypoint', img)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
     def visualize(self, keypoints, cv_rgb=None, cv_depth=None, cv_rgb_path='', cv_depth_path=''):
 
         vis_list = []
@@ -103,14 +134,21 @@ class KeypointDetection(object):
 
     
 def main(netpath, rgb, depth):
-    
+    #rgb = '/Users/cmlab/robot-peg-in-hole-task/rgb.png'
+    #depth = '/Users/cmlab/robot-peg-in-hole-task/depth.png'
     kp_detection = KeypointDetection(netpath)
-    #bbox = np.array([261, 194, 66, 66])
-    bbox = np.array([0, 0, 255, 255])
+    bbox_detection = BboxDetection('/Users/cmlab/robot-peg-in-hole-task/mrcnn/ckpnt_box_insertion_fix_3')
+    # 6007
+    #bbox = np.array([93, 72, 222, 197])
+    #bbox = np.array([0, 0, 255, 255])
+    bbox = bbox_detection.predict(cv_rgb_path=rgb)
+    print(bbox)
     camera_keypoint, keypointxy_depth_realunit = kp_detection.inference(cv_rgb_path=rgb, cv_depth_path=depth, bbox=bbox)
     print(camera_keypoint)
+    #print('xyd',keypointxy_depth_realunit)
     kp_detection.visualize(cv_rgb_path=rgb, cv_depth_path=depth, keypoints=camera_keypoint)
-   
+    kp_detection.visualize_2d(bbox=bbox, cv_rgb_path=rgb, keypoints=keypointxy_depth_realunit)
+
 
 if __name__ == '__main__':
     

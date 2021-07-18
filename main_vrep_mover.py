@@ -6,7 +6,7 @@ import random
 
 def main():
     rob_arm = SingleRoboticArm()
-    checkpoints_file_path = 'mover/ckpnt_cos_0530/checkpoint-100.pth'
+    checkpoints_file_path = 'mover/ckpnt_track_0607/checkpoint-best.pth'
     mover = MoveInference(checkpoints_file_path)
 
     # gt grasp

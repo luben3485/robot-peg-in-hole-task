@@ -216,6 +216,11 @@ def inference_resnet_nostage(
     depthmap_pred = raw_pred[:, num_keypoints:, :, :]
     heatmap = prob_pred
     heatmap = predict.heatmap_from_predict(prob_pred, num_keypoints)
+
+    #max_x, max_x_idx = torch.max(heatmap, dim=3)
+    #max, max_idx = torch.max(max_x, dim=2)
+    #print(max)
+
     #np.save('heatmap_0304.npy',heatmap.cpu().detach().numpy())
     # regression
     #coord_x, coord_y = predict.heatmap2d_to_normalized_imgcoord_gpu(heatmap, num_keypoints)

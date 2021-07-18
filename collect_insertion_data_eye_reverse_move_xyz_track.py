@@ -270,7 +270,7 @@ def random_gripper_xy(hole_pos):
 def main():
     rob_arm = SingleRoboticArm()
     data_root = '/Users/cmlab/data/pdc/logs_proto'
-    date = '2021-05-30'
+    date = '2021-06-20'
     anno_data = 'xyz_track_insertion_' + date + '/processed'
     im_data = 'xyz_track_insertion_' + date + '/processed/images'
     anno_data_path = os.path.join(data_root, anno_data)
@@ -285,7 +285,7 @@ def main():
 
     info_dic = {}
     cnt = 0
-    iter = 300
+    iter = 4
     cam_name = 'vision_eye'
     peg_top = 'peg_keypoint_top'
     peg_bottom = 'peg_keypoint_bottom'

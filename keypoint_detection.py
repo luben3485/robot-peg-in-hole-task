@@ -6,19 +6,19 @@ import os
 import numpy as np
 import cv2
 import open3d as o3d
-num = '001768'
+num = '012768'
 parser = argparse.ArgumentParser()
 parser.add_argument('--net_path', type=str,
                     #default='/home/luben/data/trained_model/keypoint/mug/checkpoint-135.pth',
-                    default='/home/luben/robot-peg-in-hole-task/mankey/experiment/ckpnt_0328/checkpoint-100.pth',
+                    default='/Users/cmlab/robot-peg-in-hole-task/mankey/experiment/ckpnt_xyzrot_0717/checkpoint-100.pth',
                     help='The absolute path to network checkpoint')
 parser.add_argument('--cv_rgb_path', type=str,
                     #default='/home/luben/robotic-arm-task-oriented-manipulation/test_data/000000_rgb.png',
-                    default='/home/luben/data/pdc/logs_proto/insertion_2021-03-22/processed/images/'+ num + '_rgb.png',
+                    default='/Users/cmlab/data/pdc/logs_proto/insertion_xyzrot_eye_2021-07-17/processed/images/'+ num + '_rgb.png',
                     help='The absolute path to rgb image')
 parser.add_argument('--cv_depth_path', type=str,
                     #default='/home/luben/robotic-arm-task-oriented-manipulation/test_data/000000_depth.png',
-                    default='/home/luben/data/pdc/logs_proto/insertion_2021-03-22/processed/images/'+ num +'_depth.png',
+                    default='/Users/cmlab/data/pdc/logs_proto/insertion_xyzrot_eye_2021-07-17/processed/images/'+ num +'_depth.png',
                     help='The absolute path to depth image')
 
 class KeypointDetection(object):
