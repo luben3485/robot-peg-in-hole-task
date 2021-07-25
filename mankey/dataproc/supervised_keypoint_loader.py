@@ -66,6 +66,12 @@ class ProcessedEntry:
     cropped_depth = np.ndarray(shape=[])  # (width, height) depth image, the depth is in mm
     cropped_binary_mask = np.ndarray(shape=[])  # (width, height) 0-1 mask
 
+    # xyzrot
+    delta_rotation_matrix = np.ndarray(shape=[])
+    delta_translation = np.ndarray(shape=[])
+    gripper_pose = np.ndarray(shape=[])
+    step_size = np.ndarray(shape=[])
+
     # Some method to check the existance of entry
     @property
     def has_depth(self):
@@ -111,7 +117,6 @@ class SupervisedKeypointDataset(data.Dataset):
 
     def __getitem__(self, index):
         processed_entry = self.get_processed_entry(self._entry_list[index])
-
         # Do normalization on images
         from mankey.utils.imgproc import rgb_image_normalize, depth_image_normalize
         # The randomization on rgb
@@ -154,7 +159,11 @@ class SupervisedKeypointDataset(data.Dataset):
             parameter.rgbd_image_key: stacked_tensor,
             parameter.keypoint_xyd_key: normalized_keypoint_xy_depth.astype(np.float32),
             parameter.keypoint_validity_key: validity.astype(np.float32),
-            parameter.target_heatmap_key: processed_entry.target_heatmap.astype(np.float32)
+            parameter.target_heatmap_key: processed_entry.target_heatmap.astype(np.float32),
+            parameter.delta_rot_key: processed_entry.delta_rotation_matrix.astype(np.float32),
+            parameter.delta_xyz_key: processed_entry.delta_translation.astype(np.float32),
+            parameter.gripper_pose_key: processed_entry.gripper_pose.astype(np.float32),
+            parameter.step_size_key: processed_entry.step_size.astype(np.float32)
         }
         #return stacked_tensor, normalized_keypoint_xy_depth.astype(np.float32), \
         #       validity.astype(np.float32), processed_entry.target_heatmap.astype(np.float32)
@@ -201,6 +210,11 @@ class SupervisedKeypointDataset(data.Dataset):
         processed_entry.bbox2patch = bbox2patch
         processed_entry.keypoint_xy_depth = pixelxy_depth
         processed_entry.keypoint_validity = validity
+        # xyzrot
+        processed_entry.delta_translation = entry.delta_translation
+        processed_entry.delta_rotation_matrix = entry.delta_rotation_matrix
+        processed_entry.gripper_pose = entry.gripper_pose
+        processed_entry.step_size = entry.step_size
 
         # Compute the guassian heatmap
         n_keypoint = pixelxy_depth.shape[1]
