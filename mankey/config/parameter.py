@@ -3,6 +3,11 @@ rgbd_image_key = 'rgbd_image'
 keypoint_xyd_key = 'normalized_keypoint_xyd'
 keypoint_validity_key = 'validity'
 target_heatmap_key = 'target_heatmap'
+# xyzrot
+delta_rot_key = 'delta_rotation_matrix'
+delta_xyz_key = 'delta_translation'
+gripper_pose_key = 'gripper_pose'
+step_size_key = 'step_size'
 
 # The bounding box given by Database is tight, make it losser
 bbox_scale = 1.25

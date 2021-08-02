@@ -181,6 +181,7 @@ def generate_one_im_anno(cnt, cam_name, peg_top, peg_bottom, hole_top, hole_bott
     #delta_rotation_matrix = quat2mat(delta_rotation_quat)
 
     # compute bbox
+    '''
     xyd = np.array(xy_depth_list)
     top_left_x = max(int(np.min(xyd[:, 0])) - 30, 0)
     top_left_y = max(int(np.min(xyd[:, 1])) - 20, 0)
@@ -188,6 +189,9 @@ def generate_one_im_anno(cnt, cam_name, peg_top, peg_bottom, hole_top, hole_bott
     bottom_right_y = min(int(np.max(xyd[:, 1])) + 20, 255)
     bbox_top_left_xy = [top_left_x, top_left_y]
     bbox_bottom_right_xy = [bottom_right_x, bottom_right_y]
+    '''
+    bbox_top_left_xy = [0,0]
+    bbox_bottom_right_xy = [rgb.shape[1], rgb.shape[0]]
     # visualize
     '''
     img = rgb.copy()
@@ -305,9 +309,9 @@ def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
 def main():
     rob_arm = SingleRoboticArm()
     data_root = '/Users/cmlab/data/pdc/logs_proto'
-    date = '2021-07-18'
-    anno_data = 'insertion_xyzrot_eye_' + date + '/processed'
-    im_data = 'insertion_xyzrot_eye_' + date + '/processed/images'
+    date = '2021-08-01'
+    anno_data = 'insertion_xyzrot_eye_toy' + date + '/processed'
+    im_data = 'insertion_xyzrot_eye_toy' + date + '/processed/images'
     anno_data_path = os.path.join(data_root, anno_data)
     im_data_path = os.path.join(data_root, im_data)
 
@@ -320,7 +324,7 @@ def main():
 
     info_dic = {}
     cnt = 0
-    iter = 300
+    iter = 3
     cam_name = 'vision_eye'
     peg_top = 'peg_keypoint_top2'
     peg_bottom = 'peg_keypoint_bottom2'
@@ -429,9 +433,9 @@ def main():
             if move_record:
                 # end point
                 print('iter: ' + str(i) + ' cnt: ' + str(cnt) + ' path: ' + str(0))
-                delta_rotation = np.array([1.0, 0.0, 0.0,
-                                           0.0, 1.0, 0.0,
-                                           0,0, 0.0, 1.0])
+                delta_rotation = np.array([[1.0, 0.0, 0.0],
+                                           [0.0, 1.0, 0.0],
+                                           [0.0, 0.0, 1.0]])
                 delta_translation = np.array([0.0, 0.0, 0.0])
                 step_size = 0
 
