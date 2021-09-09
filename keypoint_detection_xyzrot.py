@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import mankey.network.inference_xyzrot as inference
+import mankey.network.inference_xyzrot_2 as inference
 from mankey.utils.imgproc import PixelCoord
 import argparse
 import os
@@ -11,7 +11,7 @@ num = '000000'
 parser = argparse.ArgumentParser()
 parser.add_argument('--net_path', type=str,
                     #default='/home/luben/data/trained_model/keypoint/mug/checkpoint-135.pth',
-                    default='/Users/cmlab/robot-peg-in-hole-task/mankey/experiment/ckpnt_xyzrot_coord_0801/checkpoint-100.pth',
+                    default='/Users/cmlab/robot-peg-in-hole-task/mankey/experiment/ckpnt_xyzrot_coord_small_range_0813/checkpoint-200.pth',
                     help='The absolute path to network checkpoint')
 parser.add_argument('--cv_rgb_path', type=str,
                     #default='/home/luben/robotic-arm-task-oriented-manipulation/test_data/000000_rgb.png',
@@ -30,12 +30,12 @@ class KeypointDetection(object):
         assert os.path.exists(network_ckpnt_path)
         self._network, self._net_config = inference.construct_resnet_nostage(network_ckpnt_path)
         
-    def inference(self, bbox, cv_rgb=None, cv_depth=None ,cv_rgb_path='', cv_depth_path='', gripper_pose=None):
+    def inference(self, bbox, cv_rgb=None, cv_depth=None ,cv_rgb_path='', cv_depth_path='', gripper_pose=None, enable_gripper_pose=False):
         if cv_rgb_path != '':
             cv_rgb = cv2.imread(cv_rgb_path, cv2.IMREAD_COLOR)
         if cv_depth_path != '':
             cv_depth = cv2.imread(cv_depth_path, cv2.IMREAD_ANYDEPTH)
-       	camera_keypoint, delta_rot_pred, delta_xyz_pred, step_size_pred  = self.process_raw(cv_rgb, cv_depth, bbox, gripper_pose)
+       	camera_keypoint, delta_rot_pred, delta_xyz_pred, step_size_pred  = self.process_raw(cv_rgb, cv_depth, bbox, gripper_pose, enable_gripper_pose)
         camera_keypoint = camera_keypoint.T  # shape[0]: n sample, shape[1]: xyz
         return camera_keypoint, delta_rot_pred, delta_xyz_pred, step_size_pred
 
@@ -45,6 +45,7 @@ class KeypointDetection(object):
             cv_depth,  # type: np.ndarray
             bbox, # type: np.ndarray  [x,y,w,h]
             gripper_pose, # type: np.ndarray  4x4
+            enable_gripper_pose,
     ):  # type: (np.ndarray, np.ndarray, np.ndarray [x_min,y_min,x_max,y_max]) -> np.ndarray
         # Parse the bounding box
         top_left, bottom_right = PixelCoord(), PixelCoord()
@@ -57,7 +58,7 @@ class KeypointDetection(object):
         imgproc_out = inference.proc_input_img_raw(
             cv_rgb, cv_depth,
             top_left, bottom_right)
-        keypointxy_depth_scaled, delta_rot_pred, delta_xyz_pred, step_size_pred = inference.inference_resnet_nostage(self._network, imgproc_out, gripper_pose)
+        keypointxy_depth_scaled, delta_rot_pred, delta_xyz_pred, step_size_pred = inference.inference_resnet_nostage(self._network, imgproc_out, gripper_pose, enable_gripper_pose)
         keypointxy_depth_realunit = inference.get_keypoint_xy_depth_real_unit(keypointxy_depth_scaled)
         _, camera_keypoint = inference.get_3d_prediction(
             keypointxy_depth_realunit,

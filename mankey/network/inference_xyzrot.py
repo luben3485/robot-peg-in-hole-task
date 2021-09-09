@@ -205,14 +205,19 @@ def inference_resnet_nostage(
     stacked_rgbd = stacked_rgbd.to(device)
 
     # Upload the gripper pose
-    if gripper_pose == None:
+    if gripper_pose is None:
         enableGripperPose = False
     else:
+        gripper_pose = np.array(gripper_pose, dtype=np.float32)
         gripper_pose = torch.from_numpy(gripper_pose)
+        gripper_pose = torch.unsqueeze(gripper_pose, dim=0)
         gripper_pose = gripper_pose.to(device)
         enableGripperPose = True
     # Do forward
+    # new version
     raw_pred, delta_rot_pred, delta_xyz_pred, step_size_pred = network(stacked_rgbd, gripper_pose, device, enableGripperPose)
+    # old version (No gripper pose)
+    #raw_pred, delta_rot_pred, delta_xyz_pred, step_size_pred = network(stacked_rgbd, device)
     num_keypoints = raw_pred.shape[1] // 2
     assert raw_pred.shape[1] == 2 * num_keypoints
     prob_pred = raw_pred[:, 0:num_keypoints, :, :]

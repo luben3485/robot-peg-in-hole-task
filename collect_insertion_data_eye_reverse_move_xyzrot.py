@@ -309,9 +309,9 @@ def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
 def main():
     rob_arm = SingleRoboticArm()
     data_root = '/Users/cmlab/data/pdc/logs_proto'
-    date = '2021-08-01'
-    anno_data = 'insertion_xyzrot_eye_toy' + date + '/processed'
-    im_data = 'insertion_xyzrot_eye_toy' + date + '/processed/images'
+    date = '2021-09-04'
+    anno_data = 'insertion_xyzrot_eye_toy_' + date + '/processed'
+    im_data = 'insertion_xyzrot_eye_toy_' + date + '/processed/images'
     anno_data_path = os.path.join(data_root, anno_data)
     im_data_path = os.path.join(data_root, im_data)
 
@@ -361,7 +361,7 @@ def main():
         # move peg to random x,y,z
         target_pose = rob_arm.get_object_matrix(obj_name = 'UR5_ikTarget')
         hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
-        delta_move = np.array([random.uniform(-0.06, 0.06), random.uniform(-0.06, 0.06), random.uniform(0.2, 0.25)])
+        delta_move = np.array([random.uniform(-0.03, 0.03), random.uniform(-0.03, 0.03), random.uniform(0.09, 0.12)])
         target_pos = hole_top_pose[:3,3]
         target_pos += delta_move
         # target pose
@@ -425,7 +425,7 @@ def main():
             #rob_arm.movement(robot_pose)
 
         # determine the path
-        interpolation_states = 500
+        interpolation_states = 25
         path = rob_arm.compute_path_from_joint_space(target_joint_config, interpolation_states)
         print('len of the path : ', int(len(path)/6))
         if len(path) > 0:
