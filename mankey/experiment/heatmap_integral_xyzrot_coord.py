@@ -1,28 +1,30 @@
-import torch
 import os
-os.environ['CUDA_VISIBLE_DEVICES']='1'
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+import torch
 import random
 from torch.utils.data import DataLoader
 import time
 import sys
 sys.path.append('/tmp2/r09944001/robot-peg-in-hole-task')
 
-
-from mankey.network.resnet_nostage import ResnetNoStageConfig, ResnetNoStage, init_from_modelzoo
+from mankey.network.resnet_nostage_xyzrot import ResnetNoStageConfig, ResnetNoStage, init_from_modelzoo
 from mankey.network.weighted_loss import weighted_mse_loss, weighted_l1_loss
 import mankey.network.predict as predict
 import mankey.network.visualize_dbg as visualize_dbg
 import mankey.config.parameter as parameter
-from mankey.dataproc.spartan_supervised_db import SpartanSupvervisedKeypointDBConfig, SpartanSupervisedKeypointDatabase
+from mankey.dataproc.xyzrot_supervised_db import SpartanSupvervisedKeypointDBConfig, SpartanSupervisedKeypointDatabase
 from mankey.dataproc.supervised_keypoint_loader import SupervisedKeypointDatasetConfig, SupervisedKeypointDataset
 from torch.utils.tensorboard import SummaryWriter
 
-writer = SummaryWriter()
+#from mankey.network.control_network import ControlNetwork
+from mankey.network.loss import RMSELoss
 
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+writer = SummaryWriter()
+enableGripperPose = False
 # Some global parameter
 learning_rate = 2e-4
-n_epoch = 101
-
+n_epoch = 201
 def construct_dataset(is_train: bool) -> (torch.utils.data.Dataset, SupervisedKeypointDatasetConfig):
     # Construct the db
     db_config = SpartanSupvervisedKeypointDBConfig()
@@ -63,7 +65,7 @@ def visualize(network_path: str, save_dir: str):
 
     # Load the network
     network.load_state_dict(torch.load(network_path))
-    network.cuda()
+    network.to(device)
     network.eval()
 
     # Construct the dataset
@@ -91,16 +93,22 @@ def train(checkpoint_dir: str, start_from_ckpnt: str = '', save_epoch_offset: in
 
     # Construct the regressor
     network, net_config = construct_network()
+    #control_network = ControlNetwork(in_channel=int(net_config.num_keypoints * net_config.depth_per_keypoint * 256/4 * 256/4))
     if len(start_from_ckpnt) > 0:
         network.load_state_dict(torch.load(start_from_ckpnt))
     else:
         init_from_modelzoo(network, net_config)
-    network.cuda()
+    network.to(device)
+    #control_network.to(device)
 
     # The checkpoint
     if not os.path.exists(checkpoint_dir):
         os.mkdir(checkpoint_dir)
-
+    
+    # root mean square error loss
+    criterion_rmse = RMSELoss()
+    criterion_cos = torch.nn.CosineSimilarity(dim=1)
+    criterion_bce = torch.nn.BCELoss(reduction='none')
     # The optimizer and scheduler
     optimizer = torch.optim.Adam(network.parameters(), lr=learning_rate)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [60, 90], gamma=0.1)
@@ -118,7 +126,10 @@ def train(checkpoint_dir: str, start_from_ckpnt: str = '', save_epoch_offset: in
         network.train()
         train_error_xy = 0
         train_error_depth = 0
-
+        train_error_move = 0
+        train_error_rot = 0
+        train_error_xyz = 0
+        train_error_step = 0
         # The learning rate step
         scheduler.step()
         for param_group in optimizer.param_groups:
@@ -130,18 +141,41 @@ def train(checkpoint_dir: str, start_from_ckpnt: str = '', save_epoch_offset: in
             image = data[parameter.rgbd_image_key]
             keypoint_xy_depth = data[parameter.keypoint_xyd_key]
             keypoint_weight = data[parameter.keypoint_validity_key]
+            delta_rot = data[parameter.delta_rot_key]
+            delta_xyz = data[parameter.delta_xyz_key]
+            gripper_pose = data[parameter.gripper_pose_key]
+            step_size = data[parameter.step_size_key]
 
             # Upload to GPU
-            image = image.cuda()
-            keypoint_xy_depth = keypoint_xy_depth.cuda()
-            keypoint_weight = keypoint_weight.cuda()
+            image = image.to(device)
+            keypoint_xy_depth = keypoint_xy_depth.to(device)
+            keypoint_weight = keypoint_weight.to(device)
+            delta_rot = delta_rot.to(device)
+            delta_xyz = delta_xyz.to(device)
+            gripper_pose = gripper_pose.to(device)
+            step_size = step_size.to(device)
+            #print('delta_rot',delta_rot.shape)
+            #print('delta_xyz',delta_xyz.shape)
+            #print('gripper_pose',gripper_pose.shape)
+            #print('step_size',step_size.shape)
             # To predict
             optimizer.zero_grad()
             
             # raw_pred (batch_size, num_keypoint*2, network_out_map_height, network_out_map_width)
             # prob_pred (batch_size, num_keypoint, network_out_map_height, network_out_map_width)
             # depthmap_pred (batch_size, num_keypoint, network_out_map_height, network_out_map_width)
-            raw_pred = network(image)
+            raw_pred, delta_rot_pred, delta_xyz_pred, step_size_pred = network(image, gripper_pose, device, enableGripperPose=enableGripperPose)
+            #print((1-criterion_cos(torch.tensor([[0.01,0.01,0.01],[0.01,0.01,0.01]]).to(device), torch.tensor([[0.0,0.0,0.0],[0.0,0.0,0.0]]).to(device))).mean())
+            #gripper control network
+            #raw_pred_flatten = torch.flatten(raw_pred, start_dim=1)
+            #delta_rot_pred, delta_xyz_pred, step_size_pred = control_network(raw_pred_flatten)
+            loss_r = criterion_rmse(delta_rot_pred, delta_rot)
+            #loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
+            loss_t = criterion_rmse(delta_xyz_pred, delta_xyz)
+            loss_s = criterion_bce(step_size_pred, step_size)
+            loss_s = loss_s.mean()
+            loss_move = loss_r*10 + loss_t*10 + loss_s
+            
             prob_pred = raw_pred[:, 0:net_config.num_keypoints, :, :]
             depthmap_pred = raw_pred[:, net_config.num_keypoints:, :, :]
             # heatmap (batch_size, num_keypoint, network_out_map_height, network_out_map_width)
@@ -151,44 +185,60 @@ def train(checkpoint_dir: str, start_from_ckpnt: str = '', save_epoch_offset: in
             #print(prob_pred.shape)
             #print(depthmap_pred.shape)
             # Compute the coordinate
-            coord_x, coord_y = predict.heatmap2d_to_normalized_imgcoord_gpu(heatmap, net_config.num_keypoints)
+            if device == 'cpu':
+                coord_x, coord_y = predict.heatmap2d_to_normalized_imgcoord_cpu(heatmap, net_config.num_keypoints)
+            else:
+                coord_x, coord_y = predict.heatmap2d_to_normalized_imgcoord_gpu(heatmap, net_config.num_keypoints)
             depth_pred = predict.depth_integration(heatmap, depthmap_pred)
-
             # Concantate them
             xy_depth_pred = torch.cat((coord_x, coord_y, depth_pred), dim=2)
 
             # Compute loss
-            loss = weighted_l1_loss(xy_depth_pred, keypoint_xy_depth, keypoint_weight)
+            loss_kpt = weighted_l1_loss(xy_depth_pred, keypoint_xy_depth, keypoint_weight)
+            loss =loss_kpt + loss_move
             loss.backward()
             optimizer.step()
 
-            # cleanup
-            del loss
-
             # Log info
             xy_error = float(weighted_l1_loss(xy_depth_pred[:, :, 0:2], keypoint_xy_depth[:, :, 0:2], keypoint_weight[:, :, 0:2]).item())
-            depth_error = float(weighted_l1_loss(xy_depth_pred[:, :, 2], keypoint_xy_depth[:, :, 2], keypoint_weight[:, :, 2]).item())
+            depth_error = float(weighted_l1_loss(xy_depth_pred[:, :, 2], keypoint_xy_depth[:, :, 2], keypoint_weight[:, :, 2]).item()) 
+            '''
             if idx % 100 == 0:
                 print('Iteration %d in epoch %d' % (idx, epoch))
                 print('The averaged pixel error is (pixel in 256x256 image): ', 256 * xy_error / len(xy_depth_pred))
                 print('The averaged depth error is (mm): ', 256 * depth_error / len(xy_depth_pred))
-
+                print('The move error is', loss_move.item())
+            '''
             # Update info
             train_error_xy += float(xy_error)
             train_error_depth += float(depth_error)
-
+            train_error_move += float(loss_move)            
+            train_error_rot += float(loss_r)
+            train_error_xyz += float(loss_t)
+            train_error_step += float(loss_s)
+            # cleanup
+            del loss
+            
         # The info at epoch level
         print('Epoch %d' % epoch)
         print('The training averaged pixel error is (pixel in 256x256 image): ', 256 * train_error_xy / len(dataset_train))
         print('The training averaged depth error is (mm): ', train_config.depth_image_scale * train_error_depth / len(dataset_train))
+        #print('The training averaged move error is: ', train_error_move / len(dataset_train))
+        print('The training averaged rot error is: ', train_error_rot / len(dataset_train))
+        print('The training averaged xyz error is: ', train_error_xyz / len(dataset_train))
+        print('The training averaged step error is: ', train_error_step / len(dataset_train))
         writer.add_scalar('average pixel error', 256 * train_error_xy / len(dataset_train) , epoch)
         writer.add_scalar('average depth error', train_config.depth_image_scale * train_error_depth / len(dataset_train) , epoch)
+        writer.add_scalar('average move error', train_error_move / len(dataset_train) , epoch)
+        writer.add_scalar('average rot error', train_error_rot / len(dataset_train) , epoch)
+        writer.add_scalar('average xyz error', train_error_xyz / len(dataset_train) , epoch)
+        writer.add_scalar('average step error', train_error_step / len(dataset_train) , epoch)
     writer.close()
 
 if __name__ == '__main__':
     
-    checkpoint_dir = os.path.join(os.path.dirname(__file__), 'ckpnt_xyzrot_0718_2')
-    net_path = 'ckpnt_xyzrot_0718_2/checkpoint-100.pth'
+    checkpoint_dir = os.path.join(os.path.dirname(__file__), 'ckpnt_xyzrot_coord_small_range_0807')
+    #net_path = 'ckpnt_xyzrot_0725/checkpoint-100.pth'
     
     start_time = time.time()
     train(checkpoint_dir=checkpoint_dir)
@@ -196,7 +246,7 @@ if __name__ == '__main__':
     print('training time:' + str(end_time-start_time))
 
     # The visualization code
-    tmp_dir = 'tmp'
-    if not os.path.exists(tmp_dir):
-       os.mkdir(tmp_dir)
-    visualize(net_path, tmp_dir)
+    #tmp_dir = 'tmp'
+    #if not os.path.exists(tmp_dir):
+    #   os.mkdir(tmp_dir)
+    #visualize(net_path, tmp_dir)

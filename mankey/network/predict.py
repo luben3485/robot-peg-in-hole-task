@@ -140,6 +140,26 @@ def heatmap2d_to_imgcoord_gpu(
     accu_y = accu_y.sum(dim=2, keepdim=True)
     return accu_x, accu_y
 
+def heatmap2d_to_normalized_imgcoord_cpu(
+        heatmap,
+        num_keypoints):  # type: (torch.Tensor, int) -> (torch.Tensor, torch.Tensor)
+    """
+    Regress the normalized coordinate for x and y from the heatmap.
+    The range of normalized coordinate is [-0.5, -0.5] in current implementation.
+    :param heatmap:
+    :param num_keypoints:
+    :return:
+    """
+    # The un-normalized image coord
+    _, _, y_dim, x_dim = heatmap.shape
+    coord_x, coord_y = heatmap2d_to_imgcoord_cpu(heatmap, num_keypoints)
+
+    # Normalize it
+    coord_x *= float(1.0 / float(x_dim))
+    coord_y *= float(1.0 / float(y_dim))
+    coord_x -= 0.5
+    coord_y -= 0.5
+    return coord_x, coord_y
 
 def heatmap2d_to_normalized_imgcoord_gpu(
         heatmap,
