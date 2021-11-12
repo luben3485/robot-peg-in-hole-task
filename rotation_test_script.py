@@ -45,7 +45,7 @@ def main():
     gripper_pose_1 = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
 
     source_rot = gripper_pose_1[:3, :3].copy()
-    r = R.from_euler('zyx', [90, 0, 45], degrees=True)
+    r = R.from_euler('zyx', [45, 0, 0], degrees=True)
     delta_rot = r.as_matrix()
     rot_matrix = np.dot(gripper_pose_1[:3, :3], delta_rot)
     gripper_pose_1[:3, :3] = rot_matrix

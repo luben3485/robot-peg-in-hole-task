@@ -292,9 +292,32 @@ def random_gripper_xy(hole_pos):
     return delta_x, delta_y
 
 def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
-    rot_dir = np.random.normal(size=(3,))
-    rot_dir = rot_dir / np.linalg.norm(rot_dir)
-    tilt_degree = random.uniform(min_tilt_degree, max_tilt_degree)
+    ### method 1
+    #rot_dir = np.random.normal(size=(3,))
+    #rot_dir = rot_dir / np.linalg.norm(rot_dir)
+
+    ### method 2
+    while True:
+        u = random.uniform(0,1)
+        v = random.uniform(0,1)
+        theta = 2 * math.pi * u
+        phi = math.acos(2 * v - 1)
+        x = math.sin(theta) * math.sin(phi)
+        y = math.cos(theta) * math.sin(phi)
+        z = math.cos(phi)
+        dst_hole_dir = np.array([x,y,z]) # world coordinate
+        src_hole_dir = np.array([0,0,1]) # world coordinate
+
+        cross_product = np.cross(src_hole_dir, dst_hole_dir)
+        if cross_product.nonzero()[0].size == 0: # to check if it is zero vector
+            rot_dir = np.array([0,0,1])
+        else:
+            rot_dir = cross_product / np.linalg.norm(cross_product)
+        dot_product = np.dot(src_hole_dir, dst_hole_dir)
+        tilt_degree = math.degrees(math.acos(dot_product / (np.linalg.norm(src_hole_dir) * np.linalg.norm(dst_hole_dir))))
+        if abs(tilt_degree) <= max_tilt_degree and abs(tilt_degree) >= min_tilt_degree:
+            break
+    print('rot_dir:', rot_dir)
     print('tilt degree:', tilt_degree)
     w = math.cos(math.radians(tilt_degree / 2))
     x = math.sin(math.radians(tilt_degree / 2)) * rot_dir[0]
@@ -311,9 +334,9 @@ def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
 def main():
     rob_arm = SingleRoboticArm()
     data_root = '/Users/cmlab/data/pdc/logs_proto'
-    date = '2021-09-03'
-    anno_data = 'insertion_xyzrot_eye_toy_' + date + '/processed'
-    im_data = 'insertion_xyzrot_eye_toy_' + date + '/processed/images'
+    date = '2021-11-13'
+    anno_data = 'insertion_xyzrot_eye_' + date + '/processed'
+    im_data = 'insertion_xyzrot_eye_' + date + '/processed/images'
     anno_data_path = os.path.join(data_root, anno_data)
     im_data_path = os.path.join(data_root, im_data)
 
@@ -326,7 +349,7 @@ def main():
 
     info_dic = {}
     cnt = 0
-    iter = 3
+    iter = 2
     cam_name = 'vision_eye'
     peg_top = 'peg_keypoint_top2'
     peg_bottom = 'peg_keypoint_bottom2'
@@ -335,6 +358,7 @@ def main():
     peg_name = 'peg2'
     hole_name = 'hole'
     move_record = True
+    ompl_path_planning = False
 
     origin_hole_pose = rob_arm.get_object_matrix(hole_name)
     origin_hole_pos = origin_hole_pose[:3, 3]
@@ -349,6 +373,7 @@ def main():
     #origin_ur5_quat = rob_arm.get_object_quat('UR5_ikTarget')
     gripper_init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
     for i in range(iter):
+        print('=' * 8 + 'Iteration '+ str(i) + '=' * 8)
         # set init pos of peg nad hole
         hole_pos, peg_pos = get_init_pos(origin_hole_pos.copy(),origin_peg_pos.copy())
         rob_arm.set_object_position(hole_name, hole_pos)
@@ -356,7 +381,7 @@ def main():
         #rob_arm.set_object_position(peg_name, peg_pos)
         rob_arm.set_object_position(peg_name, origin_peg_pos)
         rob_arm.set_object_quat(peg_name, origin_peg_quat)
-        random_tilt(rob_arm, [hole_name], 0, 60)
+        random_tilt(rob_arm, [hole_name], 0, 200)
         rob_arm.movement(gripper_init_pose)
         rob_arm.open_gripper(mode=1)
 
@@ -368,9 +393,11 @@ def main():
         target_pos += delta_move
         # target pose
         target_pose[:3,3] = target_pos
-        # move to target pose in order to get joint position
-        rob_arm.movement(target_pose)
-        target_joint_config = rob_arm.get_joint_position()
+
+        if ompl_path_planning == True:
+            # move to target pose in order to get joint position
+            rob_arm.movement(target_pose)
+            target_joint_config = rob_arm.get_joint_position()
         rob_arm.movement(gripper_init_pose)
 
         # gt grasp peg
@@ -392,7 +419,7 @@ def main():
         # move to hole top
         grasp_pose[:2,3] = hole_keypoint_top_pose[:2,3]
         rob_arm.movement(grasp_pose)
-        time.sleep(1)
+        #time.sleep(1)
         # peg hole alignment
         # x-axis alignment
         hole_insert_dir = - rob_arm.get_object_matrix(hole_top)[:3,0] # x-axis
@@ -426,74 +453,106 @@ def main():
             #robot_pose[:3, 3] -= peg_keypoint_top_pose[:3, 0] * 0.05  # x-axis
             #rob_arm.movement(robot_pose)
 
-        # determine the path
-        interpolation_states = 5
-        path = rob_arm.compute_path_from_joint_space(target_joint_config, interpolation_states)
-        print('len of the path : ', int(len(path)/6))
-        if len(path) > 0:
-            lineHandle = rob_arm.visualize_path(path)
-            if move_record:
-                # end point
-                print('iter: ' + str(i) + ' cnt: ' + str(cnt) + ' path: ' + str(0))
-                delta_rotation = np.array([[1.0, 0.0, 0.0],
-                                           [0.0, 1.0, 0.0],
-                                           [0.0, 0.0, 1.0]])
-                delta_translation = np.array([0.0, 0.0, 0.0])
-                r_euler = np.array([0.0, 0.0, 0.0])
-                step_size = 0
+        if ompl_path_planning == True:
+            # determine the path
+            interpolation_states = 5
+            path = rob_arm.compute_path_from_joint_space(target_joint_config, interpolation_states)
+            print('len of the path : ', int(len(path)/6))
+            if len(path) > 0:
+                lineHandle = rob_arm.visualize_path(path)
+                if move_record == True:
+                    # end point
+                    print('iter: ' + str(i) + ' cnt: ' + str(cnt) + ' path: ' + str(0))
+                    delta_rotation = np.array([[1.0, 0.0, 0.0],
+                                               [0.0, 1.0, 0.0],
+                                               [0.0, 0.0, 1.0]])
+                    delta_translation = np.array([0.0, 0.0, 0.0])
+                    r_euler = np.array([0.0, 0.0, 0.0])
+                    step_size = 0
 
+                    gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
+                    pre_xyz = gripper_pose[:3, 3]
+                    pre_rot = gripper_pose[:3, :3]
+
+                    info = generate_one_im_anno(cnt, cam_name, peg_top, peg_bottom, hole_top, hole_bottom, rob_arm,
+                                                im_data_path, delta_rotation, delta_translation, gripper_pose, step_size, r_euler)
+                    info_dic[cnt] = info
+                    cnt += 1
+
+                    path_len = int(len(path) / 6)
+                    path_idx = 0
+                    #for j in range(int(len(path) / 6)):
+                    track_idx = 0
+                    while path_idx < path_len:
+                        print('iter: ' + str(i) + ' cnt: ' + str(cnt) + ' path: ' + str(track_idx +1))
+                        track_idx += 1
+                        p = path_idx / path_len
+                        # step range: 0~100
+                        step = 1+int(p*50)
+                        #step = random.randint(1+int(p*10), 1+int(p*100))
+                        if path_idx + step >= path_len:
+                            subPath = path[path_idx * 6:]
+                        else:
+                            subPath = path[path_idx * 6:(path_idx + step) * 6]
+                        path_idx += step
+                        #print(subPath)
+                        rob_arm.run_through_path(subPath)
+                        step_size = step / (1+int(1*50))
+                        if step_size >= 1.0:
+                            step_size = 1.0
+                        print('step_size', step_size)
+                        gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
+                        cnt_xyz = gripper_pose[:3, 3]
+                        cnt_rot = gripper_pose[:3, :3]
+                        delta_translation = pre_xyz - cnt_xyz
+                        # pre <==> target
+                        # cnt <==> source
+                        cnt_rot_t = np.transpose(cnt_rot)
+                        delta_rotation = np.dot(cnt_rot_t, pre_rot)
+                        r = R.from_matrix(delta_rotation)
+                        r_euler = r.as_euler('zyx', degrees=True)
+                        print('delta_translation', delta_translation)
+                        print('delta_rotation', delta_rotation)
+                        print('r_euler', r_euler)
+                        info = generate_one_im_anno(cnt, cam_name, peg_top, peg_bottom, hole_top, hole_bottom, rob_arm, im_data_path, delta_rotation, delta_translation, gripper_pose, step_size, r_euler)
+                        info_dic[cnt] = info
+                        cnt += 1
+                        pre_rot = cnt_rot.copy()
+                        pre_xyz = cnt_xyz.copy()
+                else:
+                    rob_arm.run_through_all_path(path)
+                rob_arm.clear_path_visualization(lineHandle)
+        else:
+            if move_record == True:
+                # only record start point
                 gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
                 pre_xyz = gripper_pose[:3, 3]
                 pre_rot = gripper_pose[:3, :3]
+                rob_arm.movement(target_pose)
+                gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
+                cnt_xyz = gripper_pose[:3, 3]
+                cnt_rot = gripper_pose[:3, :3]
+                delta_translation = pre_xyz - cnt_xyz
+                # pre <==> target
+                # cnt <==> source
+                cnt_rot_t = np.transpose(cnt_rot)
+                delta_rotation = np.dot(cnt_rot_t, pre_rot)
+                r = R.from_matrix(delta_rotation)
+                r_euler = r.as_euler('zyx', degrees=True)
+                print('iter: ' + str(i) + ' cnt: ' + str(cnt))
+                print('delta_translation', delta_translation)
+                print('delta_rotation', delta_rotation)
+                print('r_euler', r_euler)
+                # step_size is not used here
+                step_size = 0
 
                 info = generate_one_im_anno(cnt, cam_name, peg_top, peg_bottom, hole_top, hole_bottom, rob_arm,
-                                            im_data_path, delta_rotation, delta_translation, gripper_pose, step_size, r_euler)
+                                            im_data_path, delta_rotation, delta_translation, gripper_pose, step_size,
+                                            r_euler)
                 info_dic[cnt] = info
                 cnt += 1
-                path_len = int(len(path) / 6)
-                path_idx = 0
-                #for j in range(int(len(path) / 6)):
-                track_idx = 0
-                while path_idx < path_len:
-                    print('iter: ' + str(i) + ' cnt: ' + str(cnt) + ' path: ' + str(track_idx +1))
-                    track_idx += 1
-                    p = path_idx / path_len
-                    # step range: 0~100
-                    step = 1+int(p*50)
-                    #step = random.randint(1+int(p*10), 1+int(p*100))
-                    if path_idx + step >= path_len:
-                        subPath = path[path_idx * 6:]
-                    else:
-                        subPath = path[path_idx * 6:(path_idx + step) * 6]
-                    path_idx += step
-                    #print(subPath)
-                    rob_arm.run_through_path(subPath)
-                    step_size = step / (1+int(1*50))
-                    if step_size >= 1.0:
-                        step_size = 1.0
-                    print('step_size', step_size)
-                    gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
-                    cnt_xyz = gripper_pose[:3, 3]
-                    cnt_rot = gripper_pose[:3, :3]
-                    delta_translation = pre_xyz - cnt_xyz
-                    # pre <==> target
-                    # cnt <==> source
-                    cnt_rot_t = np.transpose(cnt_rot)
-                    delta_rotation = np.dot(cnt_rot_t, pre_rot)
-                    r = R.from_matrix(delta_rotation)
-                    r_euler = r.as_euler('zyx', degrees=True)
-                    print('delta_translation', delta_translation)
-                    print('delta_rotation', delta_rotation)
-                    print('r_euler', r_euler)
-                    info = generate_one_im_anno(cnt, cam_name, peg_top, peg_bottom, hole_top, hole_bottom, rob_arm, im_data_path, delta_rotation, delta_translation, gripper_pose, step_size, r_euler)
-                    info_dic[cnt] = info
-                    cnt += 1
-                    pre_rot = cnt_rot.copy()
-                    pre_xyz = cnt_xyz.copy()
-
             else:
-                 rob_arm.run_through_all_path(path)
-            rob_arm.clear_path_visualization(lineHandle)
+                rob_arm.movement(target_pose)
 
     rob_arm.finish()
     f = open(os.path.join(anno_data_path, 'peg_in_hole.yaml'),'w')

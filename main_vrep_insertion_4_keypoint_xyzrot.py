@@ -5,6 +5,7 @@ import cv2
 import math
 from transforms3d.quaternions import mat2quat, quat2axangle, quat2mat, qmult
 import random
+from scipy.spatial.transform import Rotation as R
 
 def quaternion_matrix(quaternion):
     """Return homogeneous rotation matrix from quaternion.
@@ -48,6 +49,20 @@ def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
         obj_quat = [obj_quat[1], obj_quat[2], obj_quat[3], obj_quat[0]]  # change to [x,y,z,w]
         rob_arm.set_object_quat(obj_name, obj_quat)
 
+def specific_tilt(rob_arm, obj_name_list, rot_dir, tilt_degree):
+    rot_dir = rot_dir / np.linalg.norm(rot_dir)
+    w = math.cos(math.radians(tilt_degree / 2))
+    x = math.sin(math.radians(tilt_degree / 2)) * rot_dir[0]
+    y = math.sin(math.radians(tilt_degree / 2)) * rot_dir[1]
+    z = math.sin(math.radians(tilt_degree / 2)) * rot_dir[2]
+    rot_quat = [w, x, y, z]
+    for obj_name in obj_name_list:
+        obj_quat = rob_arm.get_object_quat(obj_name)  # [x,y,z,w]
+        obj_quat = [obj_quat[3], obj_quat[0], obj_quat[1], obj_quat[2]]  # change to [w,x,y,z]
+        obj_quat = qmult(rot_quat, obj_quat)  # [w,x,y,z]
+        obj_quat = [obj_quat[1], obj_quat[2], obj_quat[3], obj_quat[0]]  # change to [x,y,z,w]
+        rob_arm.set_object_quat(obj_name, obj_quat)
+
 def get_init_pos(hole_pos, peg_pos):
     # position based on hole
     #x = random.uniform(0.1,0.375)
@@ -62,7 +77,7 @@ def get_init_pos(hole_pos, peg_pos):
     peg_pos[2] = 6.1368e-02
     return hole_pos, peg_pos
 
-def predict_xyzrot_from_camera(cam_name, kp_detection, rob_arm, enable_gripper_pose):
+def predict_xyzrot_from_camera(cam_name, kp_detection, rob_arm, enable_gripper_pose, visualize, output_mode):
     gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
     bbox = np.array([0, 0, 255, 255])
     rgb = rob_arm.get_rgb(cam_name=cam_name)
@@ -80,10 +95,11 @@ def predict_xyzrot_from_camera(cam_name, kp_detection, rob_arm, enable_gripper_p
     depth = cv2.warpAffine(depth, M, (w, h))
 
     depth_mm = (depth * 1000).astype(np.uint16)  # type: np.uint16 ; uint16 is needed by keypoint detection network
-    if enable_gripper_pose:
-        camera_keypoint, delta_rot_pred, delta_xyz_pred, step_size_pred = kp_detection.inference(cv_rgb=rgb, cv_depth=depth, bbox=bbox, gripper_pose=gripper_pose)
-    else:
-        camera_keypoint, delta_rot_pred, delta_xyz_pred, step_size_pred = kp_detection.inference(cv_rgb=rgb, cv_depth=depth, bbox=bbox, gripper_pose=None)
+    if output_mode == 'cls':
+        camera_keypoint, delta_rot_x_pred, delta_rot_y_pred, delta_rot_z_pred, delta_xyz_pred, step_size_pred = kp_detection.inference(cv_rgb=rgb, cv_depth=depth, bbox=bbox, gripper_pose=gripper_pose, enable_gripper_pose=enable_gripper_pose)
+    elif output_mode == 'reg':
+        camera_keypoint, delta_rot_pred, delta_xyz_pred, step_size_pred = kp_detection.inference(cv_rgb=rgb, cv_depth=depth, bbox=bbox, gripper_pose=gripper_pose, enable_gripper_pose=enable_gripper_pose)
+    # convert keypoint
     cam_pos, cam_quat, cam_matrix = rob_arm.get_camera_pos(cam_name=cam_name)
     cam_matrix = np.array(cam_matrix).reshape(3, 4)
     camera2world_matrix = cam_matrix
@@ -92,7 +108,18 @@ def predict_xyzrot_from_camera(cam_name, kp_detection, rob_arm, enable_gripper_p
         keypoint = np.append(keypoint, 1)
         world_keypoints[idx, :] = np.dot(camera2world_matrix, keypoint)[0:3]
     #print('world keypoints', world_keypoints)
-    #kp_detection.visualize(cv_rgb=rgb, cv_depth=depth_mm, keypoints=camera_keypoint)
+    if visualize:
+        kp_detection.visualize(cv_rgb=rgb, cv_depth=depth_mm, keypoints=camera_keypoint)
+
+    if output_mode == 'cls':
+        ### from euler angle to rotation matrix
+        print('cls(xyz):', delta_rot_x_pred, delta_rot_y_pred, delta_rot_z_pred)
+        x = (delta_rot_x_pred - 2 ) * 10
+        y = (delta_rot_y_pred - 6 ) * 10
+        z = (delta_rot_z_pred - 6 ) * 10
+        print('degree(xyz):', x, y, z)
+        r = R.from_euler('zyx', [z, y, x], degrees=True)
+        delta_rot_pred = r.as_matrix()
 
     return world_keypoints, delta_rot_pred, delta_xyz_pred, step_size_pred[0], gripper_pose
 
@@ -100,9 +127,12 @@ def main():
     rob_arm = SingleRoboticArm()
     init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
     #netpath = '/Users/cmlab/robot-peg-in-hole-task/mankey/experiment/ckpnt_xyzrot_coord_small_range_0801/checkpoint-200.pth'
-    netpath = '/Users/cmlab/robot-peg-in-hole-task/mankey/experiment/ckpnt_xyzrot_coord_small_range_0822_no_kpt/checkpoint-200.pth'
+    netpath = '/Users/cmlab/robot-peg-in-hole-task/mankey/experiment/ckpnt_xyzrot_coord_small_range_1015_no_kpt_reg_filter_400/checkpoint-180.pth'
     enable_gripper_pose = False
-    kp_detection = KeypointDetection(netpath)
+    visualize = False
+    enableKeypointPos = False
+    output_mode = 'reg'
+    kp_detection = KeypointDetection(netpath, output_mode, enableKeypointPos)
     cam_name = 'vision_eye'
     peg_top = 'peg_keypoint_top2'
     peg_bottom = 'peg_keypoint_bottom2'
@@ -112,15 +142,23 @@ def main():
     hole_name = 'hole'
 
     rob_arm.set_object_position(hole_name, np.array([0.2,-0.5,3.6200e-02]))
-    random_tilt(rob_arm, [hole_name], 0, 60)
+    #random_tilt(rob_arm, [hole_name], 0, 60)
+    ### specific rule
+    tilt_x = random.uniform(-1,1)
+    tilt_y = math.sqrt(1 - math.pow(tilt_x, 2))
+    if random.uniform(0,1) < 0.5:
+        tilt_y = -tilt_y
+    rot_dir = np.array([tilt_x, tilt_y, 0])
+    tilt_degree = random.uniform(0,60)
+    specific_tilt(rob_arm, [hole_name], rot_dir, tilt_degree)
 
     start_pose = rob_arm.get_object_matrix('UR5_ikTip')
     hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
-    delta_move = np.array([random.uniform(-0.06, 0.06), random.uniform(-0.06, 0.06), random.uniform(0.2, 0.25)])
+    delta_move = np.array([random.uniform(-0.03, 0.03), random.uniform(-0.03, 0.03), random.uniform(0.09, 0.12)])
     start_pos = hole_top_pose[:3, 3]
-    #start_pose += delta_move
+    start_pos += delta_move
     # test
-    start_pos += [0, 0, 0.09]
+    #start_pos += [0, 0, 0.09]
     # start pose
     start_pose[:3, 3] = start_pos
 
@@ -138,13 +176,14 @@ def main():
     step_size_pred = 1.0
     #while step_size_pred > 0.006:
     while True:
-        world_keypoints, delta_rot_pred, delta_xyz_pred, step_size_pred, gripper_pose = predict_xyzrot_from_camera(cam_name, kp_detection, rob_arm, enable_gripper_pose)
+        world_keypoints, delta_rot_pred, delta_xyz_pred, step_size_pred, gripper_pose = predict_xyzrot_from_camera(cam_name, kp_detection, rob_arm, enable_gripper_pose, visualize, output_mode)
         print('step_size', step_size_pred)
         print('delta_xyz_pred', delta_xyz_pred)
         print('delta_rot_pred', delta_rot_pred)
-        rot_matrix = np.dot(delta_rot_pred[:3, :3], gripper_pose[:3, :3])
+        #rot_matrix = np.dot(delta_rot_pred[:3, :3], gripper_pose[:3, :3])
+        rot_matrix = np.dot(gripper_pose[:3, :3], delta_rot_pred[:3, :3])
         gripper_pose[:3, :3] = rot_matrix
-        #gripper_pose[:3, 3] += delta_xyz_pred
+        gripper_pose[:3, 3] += delta_xyz_pred
         rob_arm.movement(gripper_pose)
     # peg-hole insertion
     '''
@@ -185,7 +224,9 @@ def main():
     world_keypoints, delta_rot_pred, delta_xyz_pred, step_size_pred, gripper_pose = predict_xyzrot_from_camera(cam_name,
                                                                                                                kp_detection,
                                                                                                                rob_arm,
-                                                                                                               enable_gripper_pose)
+                                                                                                               enable_gripper_pose,
+                                                                                                               visualize,
+                                                                                                               output_mode)
     #world_keypoints, delta_rot_pred, delta_xyz_pred, step_size_pred = predict_xyzrot_from_camera(cam_name, kp_detection, rob_arm)
     peg_insert_dir = world_keypoints[1] - world_keypoints[0]  # x-axis
     peg_insert_dir = peg_insert_dir / np.linalg.norm(peg_insert_dir)

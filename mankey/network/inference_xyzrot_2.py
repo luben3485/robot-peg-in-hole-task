@@ -193,6 +193,7 @@ def inference_resnet_nostage(
         imgproc_out,  # type: ImageProcOut
         gripper_pose, # type: np.ndarray  4x4
         enable_gripper_pose,
+        enableKeypointPos,
 ):  # type: (resnet_nostage.ResnetNoStage, ImageProcOut) -> np.ndarray
     """
     :param network: The network must be on: GPU
@@ -214,7 +215,7 @@ def inference_resnet_nostage(
         gripper_pose = gripper_pose.to(device)
 
     # Do forward
-    xy_depth_pred, delta_rot_pred, delta_xyz_pred, step_size_pred = network(stacked_rgbd, gripper_pose, device, enableKeypointPos=False)
+    xy_depth_pred, delta_rot_pred, delta_xyz_pred, step_size_pred = network(stacked_rgbd, gripper_pose, device, enableKeypointPos=enableKeypointPos)
     '''
     num_keypoints = raw_pred.shape[1] // 2
     assert raw_pred.shape[1] == 2 * num_keypoints

@@ -1,5 +1,6 @@
 #! /usr/bin/env python
-import mankey.network.inference_xyzrot_2 as inference
+import mankey.network.inference_xyzrot_cls as inference_cls
+import mankey.network.inference_xyzrot_2 as inference_reg
 from mankey.utils.imgproc import PixelCoord
 import argparse
 import os
@@ -24,20 +25,31 @@ parser.add_argument('--cv_depth_path', type=str,
 
 class KeypointDetection(object):
 
-    def __init__(self, network_ckpnt_path):
+    def __init__(self, network_ckpnt_path, output_mode, enableKeypointPos):
 
         # The network
         assert os.path.exists(network_ckpnt_path)
-        self._network, self._net_config = inference.construct_resnet_nostage(network_ckpnt_path)
-        
+        self.output_mode = output_mode
+        self.enableKeypointPos = enableKeypointPos
+        if self.output_mode == 'cls':
+            self._network, self._net_config = inference_cls.construct_resnet_nostage(network_ckpnt_path)
+        elif self.output_mode == 'reg':
+            self._network, self._net_config = inference_reg.construct_resnet_nostage(network_ckpnt_path)
+
     def inference(self, bbox, cv_rgb=None, cv_depth=None ,cv_rgb_path='', cv_depth_path='', gripper_pose=None, enable_gripper_pose=False):
         if cv_rgb_path != '':
             cv_rgb = cv2.imread(cv_rgb_path, cv2.IMREAD_COLOR)
         if cv_depth_path != '':
             cv_depth = cv2.imread(cv_depth_path, cv2.IMREAD_ANYDEPTH)
-       	camera_keypoint, delta_rot_pred, delta_xyz_pred, step_size_pred  = self.process_raw(cv_rgb, cv_depth, bbox, gripper_pose, enable_gripper_pose)
-        camera_keypoint = camera_keypoint.T  # shape[0]: n sample, shape[1]: xyz
-        return camera_keypoint, delta_rot_pred, delta_xyz_pred, step_size_pred
+
+       	if self.output_mode == 'cls':
+       	    camera_keypoint, delta_rot_x_pred, delta_rot_y_pred, delta_rot_z_pred, delta_xyz_pred, step_size_pred  = self.process_raw(cv_rgb, cv_depth, bbox, gripper_pose, enable_gripper_pose)
+            camera_keypoint = camera_keypoint.T  # shape[0]: n sample, shape[1]: xyz
+            return camera_keypoint, delta_rot_x_pred, delta_rot_y_pred, delta_rot_z_pred, delta_xyz_pred, step_size_pred
+        elif self.output_mode == 'reg':
+            camera_keypoint, delta_rot_pred, delta_xyz_pred, step_size_pred = self.process_raw(cv_rgb, cv_depth, bbox, gripper_pose, enable_gripper_pose)
+            camera_keypoint = camera_keypoint.T  # shape[0]: n sample, shape[1]: xyz
+            return camera_keypoint, delta_rot_pred, delta_xyz_pred, step_size_pred
 
     def process_raw(
             self,
@@ -55,15 +67,24 @@ class KeypointDetection(object):
         bottom_right.y = bbox[3]
 
         # Perform the inference
-        imgproc_out = inference.proc_input_img_raw(
+        imgproc_out = inference_cls.proc_input_img_raw(
             cv_rgb, cv_depth,
             top_left, bottom_right)
-        keypointxy_depth_scaled, delta_rot_pred, delta_xyz_pred, step_size_pred = inference.inference_resnet_nostage(self._network, imgproc_out, gripper_pose, enable_gripper_pose)
-        keypointxy_depth_realunit = inference.get_keypoint_xy_depth_real_unit(keypointxy_depth_scaled)
-        _, camera_keypoint = inference.get_3d_prediction(
-            keypointxy_depth_realunit,
-            imgproc_out.bbox2patch)
-        return camera_keypoint, delta_rot_pred, delta_xyz_pred, step_size_pred
+
+        if self.output_mode == 'cls':
+            keypointxy_depth_scaled, delta_rot_x_pred, delta_rot_y_pred, delta_rot_z_pred, delta_xyz_pred, step_size_pred = inference_cls.inference_resnet_nostage(self._network, imgproc_out, gripper_pose, enable_gripper_pose, self.enableKeypointPos)
+            keypointxy_depth_realunit = inference_cls.get_keypoint_xy_depth_real_unit(keypointxy_depth_scaled)
+            _, camera_keypoint = inference_cls.get_3d_prediction(
+                keypointxy_depth_realunit,
+                imgproc_out.bbox2patch)
+            return camera_keypoint, delta_rot_x_pred, delta_rot_y_pred, delta_rot_z_pred, delta_xyz_pred, step_size_pred
+        elif self.output_mode == 'reg':
+            keypointxy_depth_scaled, delta_rot_pred, delta_xyz_pred, step_size_pred = inference_reg.inference_resnet_nostage(self._network, imgproc_out, gripper_pose, enable_gripper_pose, self.enableKeypointPos)
+            keypointxy_depth_realunit = inference_cls.get_keypoint_xy_depth_real_unit(keypointxy_depth_scaled)
+            _, camera_keypoint = inference_cls.get_3d_prediction(
+                keypointxy_depth_realunit,
+                imgproc_out.bbox2patch)
+            return camera_keypoint, delta_rot_pred, delta_xyz_pred, step_size_pred
 
     def visualize(self, keypoints, cv_rgb=None, cv_depth=None, cv_rgb_path='', cv_depth_path=''):
 
