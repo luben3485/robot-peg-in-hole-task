@@ -1,4 +1,5 @@
 import torch
+'''
 def compute_rotation_matrix_from_ortho6d(ortho6d, device):
     x_raw = ortho6d[:, 0:3]  # batch*3
     y_raw = ortho6d[:, 3:6]  # batch*3
@@ -13,6 +14,22 @@ def compute_rotation_matrix_from_ortho6d(ortho6d, device):
     z = z.view(-1, 3, 1)
     matrix = torch.cat((x, y, z), 2)  # batch*3*3
     return matrix
+'''
+def compute_rotation_matrix_from_ortho6d(ortho6d, device):
+    y_raw = ortho6d[:, 0:3]  # batch*3
+    z_raw = ortho6d[:, 3:6]  # batch*3
+
+    y = normalize_vector(y_raw, device)  # batch*3
+    x = cross_product(y, z_raw)  # batch*3
+    x = normalize_vector(x, device)  # batch*3
+    z = cross_product(x, y)  # batch*3
+
+    x = x.view(-1, 3, 1)
+    y = y.view(-1, 3, 1)
+    z = z.view(-1, 3, 1)
+    matrix = torch.cat((x, y, z), 2)  # batch*3*3
+    return matrix
+
 
 def normalize_vector(v, device, return_mag=False):
     batch = v.shape[0]

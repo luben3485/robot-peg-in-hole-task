@@ -334,7 +334,7 @@ def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
 def main():
     rob_arm = SingleRoboticArm()
     data_root = '/Users/cmlab/data/pdc/logs_proto'
-    date = '2021-11-13'
+    date = '2021-11-14'
     anno_data = 'insertion_xyzrot_eye_' + date + '/processed'
     im_data = 'insertion_xyzrot_eye_' + date + '/processed/images'
     anno_data_path = os.path.join(data_root, anno_data)
@@ -349,7 +349,7 @@ def main():
 
     info_dic = {}
     cnt = 0
-    iter = 2
+    iter = 30
     cam_name = 'vision_eye'
     peg_top = 'peg_keypoint_top2'
     peg_bottom = 'peg_keypoint_bottom2'
@@ -381,7 +381,7 @@ def main():
         #rob_arm.set_object_position(peg_name, peg_pos)
         rob_arm.set_object_position(peg_name, origin_peg_pos)
         rob_arm.set_object_quat(peg_name, origin_peg_quat)
-        random_tilt(rob_arm, [hole_name], 0, 200)
+        random_tilt(rob_arm, [hole_name], 0, 60)
         rob_arm.movement(gripper_init_pose)
         rob_arm.open_gripper(mode=1)
 
