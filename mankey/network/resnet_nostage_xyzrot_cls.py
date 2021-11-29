@@ -180,7 +180,10 @@ class ResnetNoStage(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(1024, 256),
             nn.LeakyReLU(),
-            nn.Linear(256, 35)
+            # 5 13 13
+            #nn.Linear(256, 35)
+            # 5 26 26
+            nn.Linear(256, 59)
         )
         self.mlp_2 = nn.Sequential(
             nn.Linear(512*8*8, 4096),
@@ -193,7 +196,10 @@ class ResnetNoStage(nn.Module):
         self.mlp_3 = nn.Sequential(
             nn.Linear(256+ config.num_keypoints*3, 64),
             nn.LeakyReLU(),
-            nn.Linear(64, 35) 
+            # 5 13 13
+            #nn.Linear(64, 35)
+            # 5 25 25
+            nn.Linear(64, 59)
         )
 
     def forward(self, x, gripper_pose, device, enableKeypointPos=True):
@@ -222,13 +228,24 @@ class ResnetNoStage(nn.Module):
         else:
             out = self.mlp_1(x_feature_flatten)
         # gripper control
-        #out_r_6d = out[:, 0:6]
+        # out_r_6d = out[:, 0:6]
+        # 5_13_13
+        '''
         out_r_x = out[:, 0:5].view(-1,5)
         out_r_y = out[:, 5:18].view(-1,13)
         out_r_z = out[:, 18:31].view(-1,13)
-        #out_r = compute_rotation_matrix_from_ortho6d(out_r_6d, device) # batch*3*3
         out_t = out[:, 31:34].view(-1,3) # batch*3*1
         out_step_size = torch.sigmoid(out[:, 34]).view(-1,1) # batch*1
+        '''
+        # 5_25_25
+        out_r_x = out[:, 0:5].view(-1, 5)
+        out_r_y = out[:, 5:30].view(-1, 25)
+        out_r_z = out[:, 30:55].view(-1, 25)
+        out_t = out[:, 55:58].view(-1, 3)  # batch*3*1
+        out_step_size = torch.sigmoid(out[:, 58]).view(-1, 1)  # batch*1
+
+        # out_r = compute_rotation_matrix_from_ortho6d(out_r_6d, device) # batch*3*3
+
         return xy_depth_pred, out_r_x, out_r_y, out_r_z, out_t, out_step_size
 
 def initialize_backbone_from_modelzoo(

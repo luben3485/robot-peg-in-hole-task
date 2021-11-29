@@ -33,9 +33,28 @@ def quaternion_matrix(quaternion):
         [                0.0,                 0.0,                 0.0, 1.0]])
 
 def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
-    rot_dir = np.random.normal(size=(3,))
-    rot_dir = rot_dir / np.linalg.norm(rot_dir)
-    tilt_degree = random.uniform(min_tilt_degree, max_tilt_degree)
+    while True:
+        u = random.uniform(0, 1)
+        v = random.uniform(0, 1)
+        theta = 2 * math.pi * u
+        phi = math.acos(2 * v - 1)
+        x = math.sin(theta) * math.sin(phi)
+        y = math.cos(theta) * math.sin(phi)
+        z = math.cos(phi)
+        dst_hole_dir = np.array([x, y, z])  # world coordinate
+        src_hole_dir = np.array([0, 0, 1])  # world coordinate
+
+        cross_product = np.cross(src_hole_dir, dst_hole_dir)
+        if cross_product.nonzero()[0].size == 0:  # to check if it is zero vector
+            rot_dir = np.array([0, 0, 1])
+        else:
+            rot_dir = cross_product / np.linalg.norm(cross_product)
+        dot_product = np.dot(src_hole_dir, dst_hole_dir)
+        tilt_degree = math.degrees(
+            math.acos(dot_product / (np.linalg.norm(src_hole_dir) * np.linalg.norm(dst_hole_dir))))
+        if abs(tilt_degree) <= max_tilt_degree and abs(tilt_degree) >= min_tilt_degree:
+            break
+    print('rot_dir:', rot_dir)
     print('tilt degree:', tilt_degree)
     w = math.cos(math.radians(tilt_degree / 2))
     x = math.sin(math.radians(tilt_degree / 2)) * rot_dir[0]
@@ -127,13 +146,14 @@ def main():
     rob_arm = SingleRoboticArm()
     init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
     #netpath = '/Users/cmlab/robot-peg-in-hole-task/mankey/experiment/ckpnt_xyzrot_coord_small_range_0801/checkpoint-200.pth'
-    netpath = '/Users/cmlab/robot-peg-in-hole-task/mankey/experiment/ckpnt_xyzrot_coord_small_range_1015_no_kpt_reg_filter_400/checkpoint-180.pth'
+    netpath = '/Users/cmlab/robot-peg-in-hole-task/mankey/experiment/ckpnt_xyzrot_coord_small_range_1119_no_kpt_reg/checkpoint-160.pth'
     enable_gripper_pose = False
     visualize = False
     enableKeypointPos = False
     output_mode = 'reg'
     kp_detection = KeypointDetection(netpath, output_mode, enableKeypointPos)
-    cam_name = 'vision_eye'
+    #cam_name = 'vision_eye'
+    cam_name = 'vision_fix_front'
     peg_top = 'peg_keypoint_top2'
     peg_bottom = 'peg_keypoint_bottom2'
     hole_top = 'hole_keypoint_top'
@@ -142,8 +162,9 @@ def main():
     hole_name = 'hole'
 
     rob_arm.set_object_position(hole_name, np.array([0.2,-0.5,3.6200e-02]))
-    #random_tilt(rob_arm, [hole_name], 0, 60)
+    random_tilt(rob_arm, [hole_name], 0, 60)
     ### specific rule
+    '''
     tilt_x = random.uniform(-1,1)
     tilt_y = math.sqrt(1 - math.pow(tilt_x, 2))
     if random.uniform(0,1) < 0.5:
@@ -151,10 +172,11 @@ def main():
     rot_dir = np.array([tilt_x, tilt_y, 0])
     tilt_degree = random.uniform(0,60)
     specific_tilt(rob_arm, [hole_name], rot_dir, tilt_degree)
-
+    '''
+    ### end
     start_pose = rob_arm.get_object_matrix('UR5_ikTip')
     hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
-    delta_move = np.array([random.uniform(-0.03, 0.03), random.uniform(-0.03, 0.03), random.uniform(0.09, 0.12)])
+    delta_move = np.array([random.uniform(-0.03, 0.03), random.uniform(-0.03, 0.03), random.uniform(0.10, 0.12)])
     start_pos = hole_top_pose[:3, 3]
     start_pos += delta_move
     # test

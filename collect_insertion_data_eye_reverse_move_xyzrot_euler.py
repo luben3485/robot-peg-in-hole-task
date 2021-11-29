@@ -349,7 +349,7 @@ def main():
 
     info_dic = {}
     cnt = 0
-    iter = 15000
+    iter = 30
     cam_name = 'vision_eye'
     peg_top = 'peg_keypoint_top2'
     peg_bottom = 'peg_keypoint_bottom2'

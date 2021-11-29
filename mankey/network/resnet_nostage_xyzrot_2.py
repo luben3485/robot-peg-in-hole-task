@@ -220,7 +220,6 @@ class ResnetNoStage(nn.Module):
             _out = torch.cat((_out, kp_pos_flatten), dim=1)
             out = self.mlp_3(_out)
         else:
-            print('blash')
             out = self.mlp_1(x_feature_flatten)
         # gripper control
         out_r_6d = out[:, 0:6]
