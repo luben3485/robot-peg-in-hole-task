@@ -333,7 +333,7 @@ def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
 
 def main():
     rob_arm = SingleRoboticArm()
-    data_root = '/Users/cmlab/data/pdc/logs_proto'
+    data_root = '/home/luben/data/pdc/logs_proto'
     date = '2021-11-13'
     anno_data = 'insertion_xyzrot_eye_' + date + '/processed'
     im_data = 'insertion_xyzrot_eye_' + date + '/processed/images'
@@ -349,7 +349,7 @@ def main():
 
     info_dic = {}
     cnt = 0
-    iter = 2
+    iter = 15000
     cam_name = 'vision_eye'
     peg_top = 'peg_keypoint_top2'
     peg_bottom = 'peg_keypoint_bottom2'
@@ -381,14 +381,14 @@ def main():
         #rob_arm.set_object_position(peg_name, peg_pos)
         rob_arm.set_object_position(peg_name, origin_peg_pos)
         rob_arm.set_object_quat(peg_name, origin_peg_quat)
-        random_tilt(rob_arm, [hole_name], 0, 200)
+        random_tilt(rob_arm, [hole_name], 0, 60)
         rob_arm.movement(gripper_init_pose)
         rob_arm.open_gripper(mode=1)
 
         # move peg to random x,y,z
         target_pose = rob_arm.get_object_matrix(obj_name = 'UR5_ikTarget')
         hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
-        delta_move = np.array([random.uniform(-0.03, 0.03), random.uniform(-0.03, 0.03), random.uniform(0.09, 0.12)])
+        delta_move = np.array([random.uniform(-0.03, 0.03), random.uniform(-0.03, 0.03), random.uniform(0.10, 0.12)])
         target_pos = hole_top_pose[:3,3]
         target_pos += delta_move
         # target pose
