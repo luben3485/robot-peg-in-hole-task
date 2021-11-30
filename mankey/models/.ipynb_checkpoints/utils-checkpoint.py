@@ -1,12 +1,12 @@
 import torch
-'''
-def compute_rotation_matrix_from_ortho6d(ortho6d, device):
+
+def compute_rotation_matrix_from_ortho6d(ortho6d, use_cpu):
     x_raw = ortho6d[:, 0:3]  # batch*3
     y_raw = ortho6d[:, 3:6]  # batch*3
 
-    x = normalize_vector(x_raw, device)  # batch*3
+    x = normalize_vector(x_raw, use_cpu)  # batch*3
     z = cross_product(x, y_raw)  # batch*3
-    z = normalize_vector(z, device)  # batch*3
+    z = normalize_vector(z, use_cpu)  # batch*3
     y = cross_product(z, x)  # batch*3
 
     x = x.view(-1, 3, 1)
@@ -14,26 +14,14 @@ def compute_rotation_matrix_from_ortho6d(ortho6d, device):
     z = z.view(-1, 3, 1)
     matrix = torch.cat((x, y, z), 2)  # batch*3*3
     return matrix
-'''
-def compute_rotation_matrix_from_ortho6d(ortho6d, device):
-    y_raw = ortho6d[:, 0:3]  # batch*3
-    z_raw = ortho6d[:, 3:6]  # batch*3
 
-    y = normalize_vector(y_raw, device)  # batch*3
-    x = cross_product(y, z_raw)  # batch*3
-    x = normalize_vector(x, device)  # batch*3
-    z = cross_product(x, y)  # batch*3
-
-    x = x.view(-1, 3, 1)
-    y = y.view(-1, 3, 1)
-    z = z.view(-1, 3, 1)
-    matrix = torch.cat((x, y, z), 2)  # batch*3*3
-    return matrix
-
-def normalize_vector(v, device, return_mag=False):
+def normalize_vector(v, use_cpu, return_mag=False):
     batch = v.shape[0]
     v_mag = torch.sqrt(v.pow(2).sum(1))  # batch
-    v_mag = torch.max(v_mag, torch.autograd.Variable(torch.FloatTensor([1e-8]).to(device)))
+    if not use_cpu:
+        v_mag = torch.max(v_mag, torch.autograd.Variable(torch.FloatTensor([1e-8]).cuda()))
+    else:
+        v_mag = torch.max(v_mag, torch.autograd.Variable(torch.FloatTensor([1e-8])))
     v_mag = v_mag.view(batch, 1).expand(batch, v.shape[1])
     v = v / v_mag
     if (return_mag == True):

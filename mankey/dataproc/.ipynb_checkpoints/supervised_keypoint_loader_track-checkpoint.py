@@ -3,7 +3,6 @@ import numpy as np
 import random
 import torch.utils.data as data
 import mankey.config.parameter as parameter
-sys.path.append('/tmp2/r09944001/robot-peg-in-hole-task')
 from mankey.utils.imgproc import PixelCoord, get_guassian_heatmap, get_bbox_cropped_image_path
 from mankey.dataproc.supervised_keypoint_db import SupervisedKeypointDBEntry, SupervisedImageKeypointDatabase
 import attr
@@ -117,55 +116,86 @@ class SupervisedKeypointDataset(data.Dataset):
             raise RuntimeError('No database is provided. Exit!')
 
     def __getitem__(self, index):
-        processed_entry = self.get_processed_entry(self._entry_list[index])
+        entry_track = self._entry_list[index]
+            
+        stacked_tensor_track = []
+        normalized_keypoint_xy_depth_track = []
+        validity_track = []
+        target_heatmap_track = []
+        delta_rotation_matrix_track = []
+        delta_translation_track = []
+        gripper_pose_track = []
+        step_size_track = []
+        
         # Do normalization on images
         from mankey.utils.imgproc import rgb_image_normalize, depth_image_normalize
-        # The randomization on rgb
-        color_aug_scale = self._get_color_randomization_parameter()
-        normalized_rgb = rgb_image_normalize(processed_entry.cropped_rgb, self._config.rgb_mean, color_aug_scale)
-        rgb_channels, height, width = normalized_rgb.shape
+        for entry in entry_track:
+            processed_entry = self.get_processed_entry(entry)
+            # The randomization on rgb
+            color_aug_scale = self._get_color_randomization_parameter()
+        
+            normalized_rgb = rgb_image_normalize(processed_entry.cropped_rgb, self._config.rgb_mean, color_aug_scale)
+            rgb_channels, height, width = normalized_rgb.shape
 
-        # Check the total size of tensor
-        tensor_channels = rgb_channels
-        if processed_entry.has_depth:
-            tensor_channels += 1
+            # Check the total size of tensor
+            tensor_channels = rgb_channels
+            if processed_entry.has_depth:
+                tensor_channels += 1
 
-        # Construct the tensor
-        stacked_tensor = np.zeros(shape=(tensor_channels, height, width), dtype=np.float32)
-        stacked_tensor[0:rgb_channels, :, :] = normalized_rgb
+            # Construct the tensor
+            stacked_tensor = np.zeros(shape=(tensor_channels, height, width), dtype=np.float32)
+            stacked_tensor[0:rgb_channels, :, :] = normalized_rgb
 
-        # Process other channels
-        channel_offset = rgb_channels
-        if processed_entry.has_depth:
-            # The depth should not be randomized
-            normalized_depth = depth_image_normalize(
-                processed_entry.cropped_depth,
-                self._config.depth_image_clip,
-                self._config.depth_image_mean,
-                self._config.depth_image_scale)
-            stacked_tensor[channel_offset, :, :] = normalized_depth
-            channel_offset += 1
+            # Process other channels
+            channel_offset = rgb_channels
+            if processed_entry.has_depth:
+                # The depth should not be randomized
+                normalized_depth = depth_image_normalize(
+                    processed_entry.cropped_depth,
+                    self._config.depth_image_clip,
+                    self._config.depth_image_mean,
+                    self._config.depth_image_scale)
+                stacked_tensor[channel_offset, :, :] = normalized_depth
+                channel_offset += 1
 
-        # Do scale on keypoint xy and depth
-        normalized_keypoint_xy_depth = processed_entry.keypoint_xy_depth.copy()
-        normalized_keypoint_xy_depth[0, :] = (processed_entry.keypoint_xy_depth[0, :] / float(width)) -0.5
-        normalized_keypoint_xy_depth[1, :] = (processed_entry.keypoint_xy_depth[1, :] / float(height)) -0.5
-        normalized_keypoint_xy_depth[2, :] = \
-            (processed_entry.keypoint_xy_depth[2, :] - self._config.depth_image_mean) / float(self._config.depth_image_scale)
-        normalized_keypoint_xy_depth = np.transpose(normalized_keypoint_xy_depth, (1, 0))
+            # Do scale on keypoint xy and depth
+            normalized_keypoint_xy_depth = processed_entry.keypoint_xy_depth.copy()
+            normalized_keypoint_xy_depth[0, :] = (processed_entry.keypoint_xy_depth[0, :] / float(width)) -0.5
+            normalized_keypoint_xy_depth[1, :] = (processed_entry.keypoint_xy_depth[1, :] / float(height)) -0.5
+            normalized_keypoint_xy_depth[2, :] = \
+                (processed_entry.keypoint_xy_depth[2, :] - self._config.depth_image_mean) / float(self._config.depth_image_scale)
+            normalized_keypoint_xy_depth = np.transpose(normalized_keypoint_xy_depth, (1, 0))
 
-        # OK
-        validity = np.transpose(processed_entry.keypoint_validity, (1, 0))
+            # OK
+            validity = np.transpose(processed_entry.keypoint_validity, (1, 0))
+            
+            stacked_tensor_track.append(stacked_tensor)
+            normalized_keypoint_xy_depth_track.append(normalized_keypoint_xy_depth)
+            validity_track.append(validity)
+            target_heatmap_track.append(processed_entry.target_heatmap)
+            delta_rotation_matrix_track.append(processed_entry.delta_rotation_matrix)
+            delta_translation_track.append(processed_entry.delta_translation)
+            gripper_pose_track.append(processed_entry.gripper_pose)
+            step_size_track.append(processed_entry.step_size)
+        
+        stacked_tensor_track = np.array(stacked_tensor_track).astype(np.float32)
+        normalized_keypoint_xy_depth_track = np.array(normalized_keypoint_xy_depth_track).astype(np.float32)
+        validity_track = np.array(validity_track).astype(np.float32)
+        target_heatmap_track = np.array(target_heatmap_track).astype(np.float32)
+        delta_rotation_matrix_track = np.array(delta_rotation_matrix_track).astype(np.float32)
+        delta_translation_track = np.array(delta_translation_track).astype(np.float32)
+        gripper_pose_track = np.array(gripper_pose_track).astype(np.float32)
+        step_size_track = np.array(step_size_track).astype(np.float32)
+
         return {
-            parameter.rgbd_image_key: stacked_tensor,
-            parameter.keypoint_xyd_key: normalized_keypoint_xy_depth.astype(np.float32),
-            parameter.keypoint_validity_key: validity.astype(np.float32),
-            parameter.target_heatmap_key: processed_entry.target_heatmap.astype(np.float32),
-            parameter.delta_rot_key: processed_entry.delta_rotation_matrix.astype(np.float32),
-            parameter.delta_rot_cls_key: processed_entry.delta_rot_cls.astype(np.int),
-            parameter.delta_xyz_key: processed_entry.delta_translation.astype(np.float32),
-            parameter.gripper_pose_key: processed_entry.gripper_pose.astype(np.float32),
-            parameter.step_size_key: processed_entry.step_size.astype(np.float32)
+            parameter.rgbd_image_key: stacked_tensor_track,
+            parameter.keypoint_xyd_key: normalized_keypoint_xy_depth_track,
+            parameter.keypoint_validity_key: validity_track,
+            parameter.target_heatmap_key: target_heatmap_track,
+            parameter.delta_rot_key: delta_rotation_matrix_track,
+            parameter.delta_xyz_key: delta_translation_track,
+            parameter.gripper_pose_key: gripper_pose_track,
+            parameter.step_size_key: step_size_track
         }
         #return stacked_tensor, normalized_keypoint_xy_depth.astype(np.float32), \
         #       validity.astype(np.float32), processed_entry.target_heatmap.astype(np.float32)
@@ -217,8 +247,7 @@ class SupervisedKeypointDataset(data.Dataset):
         processed_entry.delta_rotation_matrix = entry.delta_rotation_matrix
         processed_entry.gripper_pose = entry.gripper_pose
         processed_entry.step_size = entry.step_size
-        processed_entry.delta_rot_cls = entry.delta_rot_cls
-        
+
         # Compute the guassian heatmap
         n_keypoint = pixelxy_depth.shape[1]
         processed_entry.target_heatmap = np.zeros(shape=(

@@ -3,9 +3,10 @@ import numpy as np
 import random
 import torch.utils.data as data
 import mankey.config.parameter as parameter
+import sys
 sys.path.append('/tmp2/r09944001/robot-peg-in-hole-task')
 from mankey.utils.imgproc import PixelCoord, get_guassian_heatmap, get_bbox_cropped_image_path
-from mankey.dataproc.supervised_keypoint_db import SupervisedKeypointDBEntry, SupervisedImageKeypointDatabase
+from mankey.dataproc.supervised_keypoint_pcd_db import SupervisedKeypointDBEntry, SupervisedImageKeypointDatabase
 import attr
 
 
@@ -73,6 +74,9 @@ class ProcessedEntry:
     gripper_pose = np.ndarray(shape=[])
     step_size = np.ndarray(shape=[])
 
+    # pcd
+    pcd = np.ndarray(shape=[])
+    
     # Some method to check the existance of entry
     @property
     def has_depth(self):
@@ -158,6 +162,7 @@ class SupervisedKeypointDataset(data.Dataset):
         validity = np.transpose(processed_entry.keypoint_validity, (1, 0))
         return {
             parameter.rgbd_image_key: stacked_tensor,
+            parameter.pcd_key: processed_entry.pcd.astype(np.float32),
             parameter.keypoint_xyd_key: normalized_keypoint_xy_depth.astype(np.float32),
             parameter.keypoint_validity_key: validity.astype(np.float32),
             parameter.target_heatmap_key: processed_entry.target_heatmap.astype(np.float32),
@@ -212,12 +217,16 @@ class SupervisedKeypointDataset(data.Dataset):
         processed_entry.bbox2patch = bbox2patch
         processed_entry.keypoint_xy_depth = pixelxy_depth
         processed_entry.keypoint_validity = validity
+        
         # xyzrot
         processed_entry.delta_translation = entry.delta_translation
         processed_entry.delta_rotation_matrix = entry.delta_rotation_matrix
         processed_entry.gripper_pose = entry.gripper_pose
         processed_entry.step_size = entry.step_size
         processed_entry.delta_rot_cls = entry.delta_rot_cls
+        
+        # pcd
+        processed_entry.pcd = np.load(entry.pcd_path)
         
         # Compute the guassian heatmap
         n_keypoint = pixelxy_depth.shape[1]

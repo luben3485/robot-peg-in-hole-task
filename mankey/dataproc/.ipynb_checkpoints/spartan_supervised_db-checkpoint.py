@@ -3,9 +3,6 @@ import os
 from typing import List
 import yaml
 import numpy as np
-
-import sys
-sys.path.append('/tmp2/r09944001/robot-peg-in-hole-task')
 from mankey.utils.imgproc import PixelCoord, pixel_in_bbox
 from mankey.utils.transformations import quaternion_matrix
 from mankey.dataproc.supervised_keypoint_db import SupervisedImageKeypointDatabase, SupervisedKeypointDBEntry, sanity_check_spartan
@@ -152,17 +149,13 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
     def _get_image_entry(self, image_map, scene_root: str) -> SupervisedKeypointDBEntry:
         entry = SupervisedKeypointDBEntry()
         # The path for rgb image
-        #rgb_name = image_map['rgb_image_filename']
-        # multi-view pic, the main pic is chosen now
-        rgb_name = image_map['rgb_image_filename'][0]
+        rgb_name = image_map['rgb_image_filename']
         rgb_path = os.path.join(scene_root, 'processed/images/' + rgb_name)
         assert os.path.exists(rgb_path)
         entry.rgb_image_path = rgb_path
 
         # The path for depth image
-        #depth_name = image_map['depth_image_filename']
-        # multi-view pic, the main pic is chosen now
-        depth_name = image_map['depth_image_filename'][0]
+        depth_name = image_map['depth_image_filename']
         depth_path = os.path.join(scene_root, 'processed/images/' + depth_name)
         assert os.path.exists(depth_path) # Spartan must have depth image
         entry.depth_image_path = depth_path
@@ -174,13 +167,6 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         assert os.path.exists(mask_path)
         entry.binary_mask_path = mask_path
         '''
-        # xyzrot
-        entry.delta_rotation_matrix = np.array(image_map['delta_rotation_matrix']).reshape((3,3))
-        entry.delta_rot_cls = np.array(image_map['cls']).reshape((3,))
-        entry.delta_translation = np.array(image_map['delta_translation']).reshape((3,))
-        entry.gripper_pose = np.array(image_map['gripper_pose']).reshape((4,4))
-        step_size_value = max(min(image_map['step_size'], 1.0), 0.0)
-        entry.step_size = np.array([step_size_value]).reshape((1,))
 
         # The camera pose in world
         camera2world_map = image_map['camera_to_world']
@@ -256,9 +242,9 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
 # Simple code to test the db
 def spartan_db_test():
     config = SpartanSupvervisedKeypointDBConfig()
-    config.keypoint_yaml_name = 'peg_in_hole.yaml'
-    config.pdc_data_root = '/tmp2/r09944001/data/pdc'
-    config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20210813.txt'
+    config.keypoint_yaml_name = 'shoe_6_keypoint_image.yaml'
+    config.pdc_data_root = '/home/wei/data/pdc'
+    config.config_file_path = '/home/wei/Coding/mankey/config/boot_logs.txt'
     database = SpartanSupervisedKeypointDatabase(config)
     entry_list = database.get_entry_list()
     for entry in entry_list:

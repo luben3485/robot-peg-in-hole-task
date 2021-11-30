@@ -167,6 +167,12 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         assert os.path.exists(depth_path) # Spartan must have depth image
         entry.depth_image_path = depth_path
         
+        # The path for pcd
+        pcd_name = depth_name.split('.')[0] + '.npy'
+        pcd_path = os.path.join(scene_root, 'processed/pcd/' + pcd_name)
+        assert os.path.exists(pcd_path)
+        entry.pcd_path = pcd_path
+        
         '''
         # The path for mask image
         mask_name = depth_name[0:6] + '_mask.png'
