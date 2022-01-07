@@ -1,0 +1,3 @@
+#!/bin/sh
+python collect_insertion_data_eye_reverse_move_xyzrot_close_euler_no_gripper.py 
+python collect_insertion_data_eye_reverse_move_xyzrot_euler_no_gripper.py

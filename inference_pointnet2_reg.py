@@ -96,10 +96,51 @@ class PointnetMover(object):
         points = points.transpose(2, 1)
         return points  # 1 x C x N
 
+    def process_raw_mutliple_camera(self, depth_mm_list, camera2world_list):
+        xyz_in_world_list = []
+        for idx, depth_mm in enumerate(depth_mm_list):
+            depth = depth_mm / 1000  # unit: mm to m
+            xyz, choose = self.depth_2_pcd(depth, factor, intrinsic_matrix)
+            pcd = o3d.geometry.PointCloud()
+            pcd.points = o3d.utility.Vector3dVector(xyz)
+            down_pcd = pcd.uniform_down_sample(every_k_points=8)
+            down_xyz_in_camera = np.asarray(down_pcd.points).astype(np.float32)
+            down_xyz_in_camera = down_xyz_in_camera[:8000, :]
+
+            # camera coordinate to world coordinate
+            down_xyz_in_world = []
+            for xyz in down_xyz_in_camera:
+                camera2world = np.array(camera2world_list[idx])
+                xyz = np.append(xyz, [1], axis=0).reshape(4, 1)
+                xyz_world = camera2world.dot(xyz)
+                xyz_world = xyz_world[:3] * 1000
+                down_xyz_in_world.append(xyz_world)
+            xyz_in_world_list.append(down_xyz_in_world)
+        concat_xyz_in_world = np.array(xyz_in_world_list)
+        concat_xyz_in_world = concat_xyz_in_world.reshape(-1, 3)
+        points = np.expand_dims(concat_xyz_in_world, axis=0)
+        points = provider.normalize_data(points)
+        points = torch.Tensor(points)
+        if not self.use_cpu:
+            points = points.cuda()
+        points = points.transpose(2, 1)
+        return points  # 1 x C x N
+
     def inference(self, depth):
         self.network = self.network.eval()
         with torch.no_grad():
             points = self.process_raw(depth)
+            pred, _ = self.network(points)
+            delta_rot_pred_6d = pred[:, 0:6]
+            delta_rot_pred = compute_rotation_matrix_from_ortho6d(delta_rot_pred_6d, self.use_cpu) # batch*3*3
+            delta_xyz_pred = pred[:, 6:9].view(-1,3) # batch*3
+
+        return delta_rot_pred[0], delta_xyz_pred[0]
+
+    def inference_multiple_camera(self, depth_mm_list, camera2world_list):
+        self.network = self.network.eval()
+        with torch.no_grad():
+            points = self.process_raw_mutliple_camera(depth_mm_list, camera2world_list)
             pred, _ = self.network(points)
             delta_rot_pred_6d = pred[:, 0:6]
             delta_rot_pred = compute_rotation_matrix_from_ortho6d(delta_rot_pred_6d, self.use_cpu) # batch*3*3

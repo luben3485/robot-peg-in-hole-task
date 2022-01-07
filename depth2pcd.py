@@ -31,7 +31,7 @@ def depth_2_pcd(depth, factor, K):
 
 def main():
 
-    data_root = '/home/luben/data/pdc/logs_proto/insertion_xyzrot_eye_2021-11-13/processed'
+    data_root = '/home/luben/data/pdc/logs_proto/insertion_xyzrot_eye_close_2021-12-22/processed'
     #data_root = '/home/luben/data/pdc/logs_proto/insertion_xyzrot_eye_toy_2021-09-27/processed'
     image_folder_path = os.path.join(data_root, 'images')
     pcd_folder_path = os.path.join(data_root, 'pcd')
@@ -58,7 +58,7 @@ def main():
         #for depth_image_filename in depth_image_filename_list:
         if 1==1:
             # depth_image_filename = depth_image_filename_list
-            depth_image_filename = '000000_depth.png'
+            depth_image_filename = '000001_depth.png'
             depth_img = cv2.imread(os.path.join(image_folder_path, depth_image_filename), cv2.IMREAD_ANYDEPTH)
             xyz, choose = depth_2_pcd(depth_img, factor, intrinsic_matrix)
             pcd = o3d.geometry.PointCloud()

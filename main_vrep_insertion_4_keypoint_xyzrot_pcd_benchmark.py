@@ -127,16 +127,16 @@ def main():
     benchmark_folder = 'pcd_benchmark'
     if not os.path.exists(benchmark_folder):
         os.makedirs(benchmark_folder)
-    f = open(os.path.join(benchmark_folder, "benchmark_1119_reg_e_185_d_00_60_vision_fix_front.txt"), "w")
+    f = open(os.path.join(benchmark_folder, "benchmark_1113_reg_e_200_d_00_60_vision_fix_eye.txt"), "w")
 
     rob_arm = SingleRoboticArm()
     init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-    net_date = '2021-11-30_17-13'
-    mover = PointnetMover(date=net_date, model_name='pointnet2_reg_msg', checkpoint_name='best_model_e_185.pth', use_cpu=False, out_channel=9)
+    net_date = '2021-12-07_17-02'
+    mover = PointnetMover(date=net_date, model_name='pointnet2_reg_msg', checkpoint_name='best_model.pth', use_cpu=False, out_channel=9)
 
     iter_num = 300
-    #cam_name = 'vision_eye'
-    cam_name = 'vision_fix_front'
+    cam_name = 'vision_eye'
+    #cam_name = 'vision_fix_front'
     peg_top = 'peg_keypoint_top2'
     peg_bottom = 'peg_keypoint_bottom2'
     hole_top = 'hole_keypoint_top'
