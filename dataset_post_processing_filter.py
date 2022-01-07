@@ -1,11 +1,11 @@
 from ruamel import yaml
 import os
 data_root = '/tmp2/r09944001/data/pdc/logs_proto'
-date = '2021-10-23'
+date = '2021-11-13'
 anno_data = 'insertion_xyzrot_eye_' + date + '/processed'
 im_data = 'insertion_xyzrot_eye_' + date + '/processed/images'
 anno_data_path = os.path.join(data_root, anno_data)
-class_count = 400
+class_count = 150
 
 with open(os.path.join(anno_data_path, 'peg_in_hole.yaml'), 'r') as f_r:
     data = yaml.load(f_r)
@@ -27,10 +27,18 @@ for key, value in data.items():
     if x < -25 or x > 25:
         continue
     
+    # 5 13 13
+    
     z_cls = max(0, min(int(round(z,-1)/10)+6, 12))        
     y_cls = max(0, min(int(round(y,-1)/10)+6, 12))        
     x_cls = max(0, min(int(round(x,-1)/10)+2, 4))        
-
+    
+    # 5 25 25   
+    '''
+    z_cls = max(0, min(int(round(z,-1)/5)+12, 24))        
+    y_cls = max(0, min(int(round(y,-1)/5)+12, 24))        
+    x_cls = max(0, min(int(round(x,-1)/10)+2, 4))        
+    '''
     cls = [z_cls, y_cls, x_cls]
     if y_cls in y_cls_count:
         y_cls_count[y_cls] += 1

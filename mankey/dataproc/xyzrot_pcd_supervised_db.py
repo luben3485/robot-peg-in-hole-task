@@ -168,7 +168,13 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         entry.depth_image_path = depth_path
         
         # The path for pcd
+        ''' old version
         pcd_name = depth_name.split('.')[0] + '.npy'
+        pcd_path = os.path.join(scene_root, 'processed/pcd/' + pcd_name)
+        assert os.path.exists(pcd_path)
+        entry.pcd_path = pcd_path
+        '''
+        pcd_name = image_map['pcd']
         pcd_path = os.path.join(scene_root, 'processed/pcd/' + pcd_name)
         assert os.path.exists(pcd_path)
         entry.pcd_path = pcd_path
@@ -182,7 +188,7 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         '''
         # xyzrot
         entry.delta_rotation_matrix = np.array(image_map['delta_rotation_matrix']).reshape((3,3))
-        entry.delta_rot_cls = np.array(image_map['cls']).reshape((3,))
+        #entry.delta_rot_cls = np.array(image_map['cls']).reshape((3,))
         entry.delta_translation = np.array(image_map['delta_translation']).reshape((3,))
         entry.gripper_pose = np.array(image_map['gripper_pose']).reshape((4,4))
         step_size_value = max(min(image_map['step_size'], 1.0), 0.0)

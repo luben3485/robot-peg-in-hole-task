@@ -167,7 +167,7 @@ class SupervisedKeypointDataset(data.Dataset):
             parameter.keypoint_validity_key: validity.astype(np.float32),
             parameter.target_heatmap_key: processed_entry.target_heatmap.astype(np.float32),
             parameter.delta_rot_key: processed_entry.delta_rotation_matrix.astype(np.float32),
-            parameter.delta_rot_cls_key: processed_entry.delta_rot_cls.astype(np.int),
+            #parameter.delta_rot_cls_key: processed_entry.delta_rot_cls.astype(np.int),
             parameter.delta_xyz_key: processed_entry.delta_translation.astype(np.float32),
             parameter.gripper_pose_key: processed_entry.gripper_pose.astype(np.float32),
             parameter.step_size_key: processed_entry.step_size.astype(np.float32)
@@ -223,7 +223,7 @@ class SupervisedKeypointDataset(data.Dataset):
         processed_entry.delta_rotation_matrix = entry.delta_rotation_matrix
         processed_entry.gripper_pose = entry.gripper_pose
         processed_entry.step_size = entry.step_size
-        processed_entry.delta_rot_cls = entry.delta_rot_cls
+        #processed_entry.delta_rot_cls = entry.delta_rot_cls
         
         # pcd
         processed_entry.pcd = np.load(entry.pcd_path)

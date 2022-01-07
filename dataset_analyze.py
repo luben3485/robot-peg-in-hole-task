@@ -1,12 +1,12 @@
 from ruamel import yaml
 import os
 data_root = '/tmp2/r09944001/data/pdc/logs_proto'
-date = '2021-10-15'
+date = '2021-11-13'
 anno_data = 'insertion_xyzrot_eye_' + date + '/processed'
 im_data = 'insertion_xyzrot_eye_' + date + '/processed/images'
 anno_data_path = os.path.join(data_root, anno_data)
 
-with open(os.path.join(anno_data_path, 'peg_in_hole_filter_800.yaml'), 'r') as f_r:
+with open(os.path.join(anno_data_path, 'peg_in_hole_filter_150.yaml'), 'r') as f_r:
     data = yaml.load(f_r)
 print(type(data))
 print(len(data))

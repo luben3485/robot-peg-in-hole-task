@@ -5,7 +5,7 @@ Date: Nov 2019
 
 import os
 '''HYPER PARAMETER'''
-os.environ["CUDA_VISIBLE_DEVICES"] = '3'
+os.environ["CUDA_VISIBLE_DEVICES"] = '4'
 import sys
 import torch
 from torch.utils.data import DataLoader
@@ -57,9 +57,9 @@ def construct_dataset(is_train: bool) -> (torch.utils.data.Dataset, SupervisedKe
     db_config.keypoint_yaml_name = 'peg_in_hole.yaml'
     db_config.pdc_data_root = '/tmp2/r09944001/data/pdc'
     if is_train:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20211119.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20211226.txt'
     else:
-        db_config.config_file_path = '/tmp2/r90944001/robot-peg-in-hole-task/mankey/config/insertion_20211119.txt'
+        db_config.config_file_path = '/tmp2/r90944001/robot-peg-in-hole-task/mankey/config/insertion_20211226.txt'
     database = SpartanSupervisedKeypointDatabase(db_config)
 
     # Construct torch dataset
@@ -253,16 +253,14 @@ def main(args):
 
         with torch.no_grad():
             rot_error, xyz_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos)
-
+            
+            log_string('Test Rotation Error: %f, Translation Error: %f' % (rot_error, xyz_error))
+            log_string('Best Rotation Error: %f, Translation Error: %f' % (best_rot_error, best_xyz_error))
+            
             if (rot_error + xyz_error) < (best_rot_error + best_xyz_error):
                 best_rot_error = rot_error
                 best_xyz_error = xyz_error
                 best_epoch = epoch + 1
-
-            log_string('Test Rotation Error: %f, Translation Error: %f' % (rot_error, xyz_error))
-            log_string('Best Rotation Error: %f, Translation Error: %f' % (best_rot_error, best_xyz_error))
-
-            if (rot_error + xyz_error) < (best_rot_error + best_xyz_error):
                 logger.info('Save model...')
                 savepath = str(checkpoints_dir) + '/best_model.pth'
                 log_string('Saving at %s' % savepath)
@@ -270,7 +268,7 @@ def main(args):
                     'epoch': best_epoch,
                     'rot_error': rot_error,
                     'xyz_error': xyz_error,
-                    'model_state_dict': classifier.state_dict(),
+                    'model_state_dict': network.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                 }
                 torch.save(state, savepath)
