@@ -37,8 +37,8 @@ def parse_args():
     parser = argparse.ArgumentParser('training')
     parser.add_argument('--use_cpu', action='store_true', default=False, help='use cpu mode')
     #parser.add_argument('--gpu', type=str, default='0', help='specify gpu device')
-    parser.add_argument('--batch_size', type=int, default=16, help='batch size in training')
-    parser.add_argument('--model', default='pointnet2_reg_msg', help='model name [default: pointnet_cls]')
+    parser.add_argument('--batch_size', type=int, default=8, help='batch size in training')
+    parser.add_argument('--model', default='pointnet2_reg_seg_heatmap_msg', help='model name [default: pointnet_cls]')
     parser.add_argument('--out_channel', default=9, type=int)
     parser.add_argument('--epoch', default=200, type=int, help='number of epoch in training')
     parser.add_argument('--learning_rate', default=0.001, type=float, help='learning rate in training')
@@ -57,9 +57,9 @@ def construct_dataset(is_train: bool) -> (torch.utils.data.Dataset, SupervisedKe
     db_config.keypoint_yaml_name = 'peg_in_hole.yaml'
     db_config.pdc_data_root = '/tmp2/r09944001/data/pdc'
     if is_train:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220107.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220112_coarse.txt'
     else:
-        db_config.config_file_path = '/tmp2/r90944001/robot-peg-in-hole-task/mankey/config/insertion_20220107.txt'
+        db_config.config_file_path = '/tmp2/r90944001/robot-peg-in-hole-task/mankey/config/insertion_20220112_coarse.txt'
     database = SpartanSupervisedKeypointDatabase(db_config)
 
     # Construct torch dataset
@@ -82,6 +82,7 @@ def inplace_relu(m):
 def test(model, loader, out_channel, criterion_rmse, criterion_cos):
     rot_error = []
     xyz_error = []
+    heatmap_error = []
     network = model.eval()
 
     for j, data in tqdm(enumerate(loader), total=len(loader)):
@@ -90,29 +91,37 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos):
         points = torch.Tensor(points)
         delta_rot = data[parameter.delta_rot_key]
         delta_xyz = data[parameter.delta_xyz_key]
+        heatmap_target = data[parameter.heatmap_key]
+        segmentation_target = data[parameter.segmentation_key]
 
         if not args.use_cpu:
             points = points.cuda()
             delta_rot = delta_rot.cuda()
             delta_xyz = delta_xyz.cuda()
+            heatmap_target = heatmap_target.cuda()
             
-        
         points = points.transpose(2, 1)
-        pred, _ = network(points)
-        delta_rot_pred_6d = pred[:, 0:6]
-        delta_rot_pred = compute_rotation_matrix_from_ortho6d(delta_rot_pred_6d, args.use_cpu) # batch*3*3
-        delta_xyz_pred = pred[:, 6:9].view(-1,3) # batch*3
+        heatmap_pred, action_pred = network(points)
         
+        # action control
+        delta_rot_pred_6d = action_pred[:, 0:6]
+        delta_rot_pred = compute_rotation_matrix_from_ortho6d(delta_rot_pred_6d, args.use_cpu) # batch*3*3
+        delta_xyz_pred = action_pred[:, 6:9].view(-1,3) # batch*3
+
+        # loss computation
+        loss_heatmap = criterion_rmse(heatmap_pred, heatmap_target)
         loss_r = criterion_rmse(delta_rot_pred, delta_rot)
         loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
         
         rot_error.append(loss_r.item())
         xyz_error.append(loss_t.item())
+        heatmap_error.append(loss_heatmap.item())
     
     rot_error = sum(rot_error) / len(rot_error)
     xyz_error = sum(xyz_error) / len(xyz_error)
+    heatmap_error = sum(heatmap_error) / len(heatmap_error)
     
-    return rot_error, xyz_error
+    return rot_error, xyz_error, heatmap_error
 
 
 def main(args):
@@ -125,7 +134,7 @@ def main(args):
     timestr = str(datetime.datetime.now().strftime('%Y-%m-%d_%H-%M'))
     exp_dir = Path('./log/')
     exp_dir.mkdir(exist_ok=True)
-    exp_dir = exp_dir.joinpath('regression')
+    exp_dir = exp_dir.joinpath('reg_seg_heatmap')
     exp_dir.mkdir(exist_ok=True)
     if args.log_dir is None:
         exp_dir = exp_dir.joinpath(timestr)
@@ -168,7 +177,8 @@ def main(args):
     shutil.copy('models/pointnet2_utils.py', str(exp_dir))
     shutil.copy('./train_pointnet2_reg.py', str(exp_dir))
 
-    network = model.get_model(out_channel, normal_channel=args.use_normals)
+    #network = model.get_model(out_channel, normal_channel=args.use_normals)
+    network = model.get_model(out_channel)
     criterion_rmse = RMSELoss()
     criterion_cos = torch.nn.CosineSimilarity(dim=1)
     
@@ -203,6 +213,7 @@ def main(args):
     global_step = 0
     best_rot_error = 99.9
     best_xyz_error = 99.9
+    best_heatmap_error = 99.9
 
     '''TRANING'''
     logger.info('Start training...')
@@ -210,6 +221,7 @@ def main(args):
         log_string('Epoch %d (%d/%s):' % (global_epoch + 1, epoch + 1, args.epoch))
         train_rot_error = []
         train_xyz_error = []
+        train_heatmap_error = []
         network = network.train()
 
         scheduler.step()
@@ -223,43 +235,56 @@ def main(args):
             points[:, :, 0:3] = provider.shift_point_cloud(points[:, :, 0:3])
             points = torch.Tensor(points)
             points = points.transpose(2, 1)
+            heatmap_target = data[parameter.heatmap_key]
+            segmentation_target = data[parameter.segmentation_key]
+            #print('heatmap size', heatmap_target.size())
+            #print('segmentation', segmentation_target.size())
             delta_rot = data[parameter.delta_rot_key]
             delta_xyz = data[parameter.delta_xyz_key]
-
+            
             if not args.use_cpu:
                 points = points.cuda()
                 delta_rot = delta_rot.cuda()
                 delta_xyz = delta_xyz.cuda()
-            
-            pred, trans_feat = network(points)
-            delta_rot_pred_6d = pred[:, 0:6]
+                heatmap_target = heatmap_target.cuda()
+                
+            heatmap_pred, action_pred = network(points)
+            # action control
+            delta_rot_pred_6d = action_pred[:, 0:6]
             delta_rot_pred = compute_rotation_matrix_from_ortho6d(delta_rot_pred_6d, args.use_cpu) # batch*3*3
-            delta_xyz_pred = pred[:, 6:9].view(-1,3) # batch*3
-        
+            delta_xyz_pred = action_pred[:, 6:9].view(-1,3) # batch*3
+            
+            # loss computation
+            loss_heatmap = criterion_rmse(heatmap_pred, heatmap_target)
             loss_r = criterion_rmse(delta_rot_pred, delta_rot)
             loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
-            loss = loss_r + loss_t
+            
+            loss = loss_r + loss_t + loss_heatmap
             loss.backward()
             optimizer.step()
             global_step += 1
             
             train_rot_error.append(loss_r.item())
             train_xyz_error.append(loss_t.item())
+            train_heatmap_error.append(loss_heatmap.item())
             
         train_rot_error = sum(train_rot_error) / len(train_rot_error)
         train_xyz_error = sum(train_xyz_error) / len(train_xyz_error)
+        train_heatmap_error = sum(train_heatmap_error) / len(train_heatmap_error)
         log_string('Train Rotation Error: %f' % train_rot_error)
         log_string('Train Translation Error: %f' % train_xyz_error)
+        log_string('Train Heatmap Error: %f' % train_xyz_error)
 
         with torch.no_grad():
-            rot_error, xyz_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos)
+            rot_error, xyz_error, heatmap_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos)
             
-            log_string('Test Rotation Error: %f, Translation Error: %f' % (rot_error, xyz_error))
-            log_string('Best Rotation Error: %f, Translation Error: %f' % (best_rot_error, best_xyz_error))
+            log_string('Test Rotation Error: %f, Translation Error: %f, Heatmap Error: %f' % (rot_error, xyz_error, heatmap_error))
+            log_string('Best Rotation Error: %f, Translation Error: %f, Heatmap Error: %f' % (best_rot_error, best_xyz_error, heatmap_error))
             
-            if (rot_error + xyz_error) < (best_rot_error + best_xyz_error):
+            if (rot_error + xyz_error + heatmap_error) < (best_rot_error + best_xyz_error + best_heatmap_error):
                 best_rot_error = rot_error
                 best_xyz_error = xyz_error
+                best_heatmap_error = heatmap_error
                 best_epoch = epoch + 1
                 logger.info('Save model...')
                 savepath = str(checkpoints_dir) + '/best_model.pth'
@@ -268,6 +293,7 @@ def main(args):
                     'epoch': best_epoch,
                     'rot_error': rot_error,
                     'xyz_error': xyz_error,
+                    'heatmap_error': heatmap_error,
                     'model_state_dict': network.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                 }

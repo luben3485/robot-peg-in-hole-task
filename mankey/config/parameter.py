@@ -1,6 +1,8 @@
 # The string key for dataset
 rgbd_image_key = 'rgbd_image'
 pcd_key = 'pcd'
+heatmap_key = 'heatmap'
+segmentation_key = 'segmentation'
 keypoint_xyd_key = 'normalized_keypoint_xyd'
 keypoint_validity_key = 'validity'
 target_heatmap_key = 'target_heatmap'
