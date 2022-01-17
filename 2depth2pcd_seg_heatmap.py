@@ -5,6 +5,7 @@ import open3d as o3d
 import glob
 import yaml
 import math
+import tqdm
 
 def depth_2_pcd(depth, factor, K):
     xmap = np.array([[j for i in range(depth.shape[0])] for j in range(depth.shape[1])])
@@ -32,16 +33,20 @@ def depth_2_pcd(depth, factor, K):
 
 def main():
 
-    data_root = '/home/luben/data/pdc/logs_proto/insertion_xyzrot_eye_2022-01-07_tmp/processed'
-    #data_root = '/home/luben/data/pdc/logs_proto/insertion_xyzrot_eye_toy_2021-09-27/processed'
+    data_root = '/home/luben/data/pdc/logs_proto/insertion_xyzrot_eye_close_2022-01-12_tmp/processed'
+    #data_root = '/home/luben/data/pdc/logs_proto/insertion_xyzrot_eye_close_2021-12-30/processed'
     image_folder_path = os.path.join(data_root, 'images')
     pcd_folder_path = os.path.join(data_root, 'pcd')
+    pcd_seg_heatmap_folder_path = os.path.join(data_root, 'pcd_seg_heatmap')
     # create folder
     cwd = os.getcwd()
     os.chdir(data_root)
     if not os.path.exists('pcd'):
         os.makedirs('pcd')
+    if not os.path.exists('pcd_seg_heatmap'):
+        os.makedirs('pcd_seg_heatmap')
     os.chdir(cwd)
+
 
     focal_length = 309.019
     principal = 128
@@ -53,7 +58,8 @@ def main():
 
     with open(os.path.join(data_root, 'peg_in_hole.yaml'), 'r') as f_r:
         data = yaml.load(f_r)
-    for key, value in data.items():
+    #for key, value in data.items():
+    for key, value in tqdm.tqdm(data.items()):
         depth_image_filename_list = data[key]['depth_image_filename']
         camera2world_list = data[key]['camera_matrix']
         xyz_in_world_list = []
@@ -63,17 +69,9 @@ def main():
             xyz, choose = depth_2_pcd(depth_img, factor, intrinsic_matrix)
             pcd = o3d.geometry.PointCloud()
             pcd.points = o3d.utility.Vector3dVector(xyz)
-
-            #pcd = create_point_cloud_from_depth_image(depth_img, o3d.camera.PinholeCameraIntrinsic(256,256,focal_length,focal_length,principal,principal))
-            # o3d.io.write_point_cloud(os.path.join(pcd_folder_path, depth_image_filename.split('.')[0] + '.ply'), pcd)
             down_pcd = pcd.uniform_down_sample(every_k_points=8)
-            if key == 0:
-                o3d.io.write_point_cloud(os.path.join(data_root, depth_image_filename.split('.')[0] + '_down.ply'), down_pcd)
             down_xyz = np.asarray(down_pcd.points)
-            #print(key, new_xyz.shape)
             down_xyz_in_camera = down_xyz[:8000, :]
-            #pcd_filename = depth_image_filename.split('.')[0] + '.npy'
-            #np.save(os.path.join(pcd_folder_path, pcd_filename), new_xyz_in_camera)
 
             down_xyz_in_world = []
             for xyz in down_xyz_in_camera:
@@ -86,7 +84,7 @@ def main():
         concat_xyz_in_world = np.array(xyz_in_world_list)
         concat_xyz_in_world = concat_xyz_in_world.reshape(-1,3)
 
-        # convert firtst hole's keypoint from camera to world coordinate
+        # convert first hole's keypoint from camera to world coordinate
         hole_keypoint_top_pose_in_world = np.array(data[key]['hole_keypoint_obj_top_pose_in_world'])
         hole_keypoint_top_pos_in_world = hole_keypoint_top_pose_in_world[:3, 3]
         hole_keypoint_bottom_pose_in_world = np.array(data[key]['hole_keypoint_obj_bottom_pose_in_world'])
@@ -109,8 +107,6 @@ def main():
         seg_label = []
         seg_color = []
         heatmap_label = []
-        max_value = 0
-        min_value = 99
         for xyz in concat_xyz_in_world:
             x = np.dot(x_normal_vector, xyz / 1000)
             y = np.dot(y_normal_vector, xyz / 1000)
@@ -137,74 +133,38 @@ def main():
             heatmap_value = math.exp(-(y_scalar ** 2 + z_scalar ** 2 + x_scalar ** 2) / (2.0 * sigma ** 2))  # / (2 * math.pi * sigma**3 * math.sqrt(2*math.pi))
             heatmap_label.append(heatmap_value)
 
-            #test
-            if heatmap_value < min_value:
-                min_value = heatmap_value
-            if heatmap_value > max_value:
-                max_value = heatmap_value
-            # print(heatmap_value)
-        print(min_value, max_value)
-
+        '''
+        # hole pcd
         hole_seg_pcd = o3d.geometry.PointCloud()
         hole_seg_pcd.points = o3d.utility.Vector3dVector(hole_seg_xyz*1000)
         o3d.io.write_point_cloud(os.path.join(data_root, 'hole_seg_pcd_' + str(key) + '.ply'), hole_seg_pcd)
-
         '''
-        concat_xyz_in_camera = []
-        for xyz in concat_xyz_in_world:
-            camera2world = np.array(camera2world_list[0])
-            world2camera = np.linalg.inv(camera2world)
-            xyz = np.append(xyz, [1], axis=0).reshape(4, 1)
-            xyz_camera = world2camera.dot(xyz)
-            xyz_camera = xyz_camera[:3]
-            concat_xyz_in_camera.append(xyz_camera)
 
-        concat_xyz_in_camera = np.array(concat_xyz_in_camera)
-        '''
-        pcd_filename = str(key).zfill(6) + '_concat_xyzseg.npy'
+        pcd_filename = str(key).zfill(6) + '_concat_xyz_seg_heatmap.npy'
         seg_label = np.array(seg_label).reshape(-1,1) # n x 1
         heatmap_label = np.array(heatmap_label).reshape(-1, 1)  # n x 1
-        xyzseg = np.concatenate((concat_xyz_in_world, np.asarray(seg_label)), axis=1).astype(np.float32)  # n x 4
-        #np.save(os.path.join(pcd_folder_path, pcd_filename), concat_xyz_in_world)
-        np.save(os.path.join(pcd_folder_path, pcd_filename), xyzseg)
+        xyz_seg = np.concatenate((concat_xyz_in_world, seg_label), axis=1).astype(np.float32)  # n x 4
+        xyz_seg_heatmap = np.concatenate((xyz_seg, heatmap_label), axis=1).astype(np.float32)  # n x 5
+        np.save(os.path.join(pcd_seg_heatmap_folder_path, pcd_filename), xyz_seg_heatmap)
         data[key]['pcd'] = pcd_filename
 
 
-        concat_pcd = o3d.geometry.PointCloud()
-        concat_pcd.points = o3d.utility.Vector3dVector(concat_xyz_in_world)
-        seg_color = np.array(seg_color).reshape(-1, 3)  # n x 3
-        concat_pcd.colors = o3d.utility.Vector3dVector(seg_color)
-        o3d.io.write_point_cloud(os.path.join(data_root, 'concat_xyzseg_' + str(key) + '.ply'), concat_pcd)
+        if key == 0:
+            concat_pcd = o3d.geometry.PointCloud()
+            concat_pcd.points = o3d.utility.Vector3dVector(concat_xyz_in_world)
+            seg_color = np.array(seg_color).reshape(-1, 3)  # n x 3
+            concat_pcd.colors = o3d.utility.Vector3dVector(seg_color)
+            o3d.io.write_point_cloud(os.path.join(data_root, 'concat_xyzseg_' + str(key) + '.ply'), concat_pcd)
 
-        concat_pcd = o3d.geometry.PointCloud()
-        concat_pcd.points = o3d.utility.Vector3dVector(concat_xyz_in_world)
-        heatmap_color = np.repeat(heatmap_label, 3, axis=1).reshape(-1, 3)  # n x 3
-        concat_pcd.colors = o3d.utility.Vector3dVector(heatmap_color)
-        o3d.io.write_point_cloud(os.path.join(data_root, 'concat_xyzheatmap_' + str(key) + '.ply'), concat_pcd)
+            concat_pcd = o3d.geometry.PointCloud()
+            concat_pcd.points = o3d.utility.Vector3dVector(concat_xyz_in_world)
+            heatmap_color = np.repeat(heatmap_label, 3, axis=1).reshape(-1, 3)  # n x 3
+            concat_pcd.colors = o3d.utility.Vector3dVector(heatmap_color)
+            o3d.io.write_point_cloud(os.path.join(data_root, 'concat_xyzheatmap_' + str(key) + '.ply'), concat_pcd)
+
 
     with open(os.path.join(data_root, 'peg_in_hole.yaml'), 'w') as f_w:
         yaml.dump(data, f_w)
-
-    '''
-    num = '020000'
-    xyz = np.load('/home/luben/data/pdc/logs_proto/insertion_xyzrot_eye_2021-11-19/processed/pcd/' + num + '_depth.npy')
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(xyz)
-    o3d.io.write_point_cloud(num+ '_depth.ply', pcd)
-    '''
-    '''
-    folder_path = '/home/luben/data/pdc/logs_proto/insertion_xyzrot_eye_2021-11-19/processed/images'
-    depth_img_name = '000001_depth.png'
-    depth_img = cv2.imread(os.path.join(folder_path, depth_img_name), cv2.IMREAD_ANYDEPTH)
-    focal_length = 309.019
-    principal = 128
-    factor = 1
-    intrinsic_matrix = np.array([[focal_length,0, principal],
-                                 [0, focal_length, principal],
-                                 [0,0,1]],dtype=np.float64)
-    xyz, choose = depth_2_pcd(depth_img, factor, intrinsic_matrix)
-    
-    '''
 
 if __name__ == '__main__':
     main()

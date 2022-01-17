@@ -89,13 +89,14 @@ def point2pixel(keypoint_in_camera, focal_x=309.019, focal_y=309.019, principal_
     return xy_depth
 
 
-def generate_one_im_anno(cnt, cam_name_list, peg_top, peg_bottom, hole_top, hole_bottom, rob_arm, im_data_path,
+def generate_one_im_anno(cnt, cam_name_list, peg_top, peg_bottom, hole_top, hole_bottom, hole_obj_bottom, rob_arm, im_data_path,
                          delta_rotation, delta_translation, gripper_pose, step_size, r_euler):
     # Get keypoint location
     peg_keypoint_top_pose = rob_arm.get_object_matrix(peg_top)
     peg_keypoint_bottom_pose = rob_arm.get_object_matrix(peg_bottom)
     hole_keypoint_top_pose = rob_arm.get_object_matrix(hole_top)
     hole_keypoint_bottom_pose = rob_arm.get_object_matrix(hole_bottom)
+    hole_keypoint_obj_bottom_pose = rob_arm.get_object_matrix(hole_obj_bottom)
 
     peg_keypoint_top_in_world = peg_keypoint_top_pose[:3, 3]
     peg_keypoint_bottom_in_world = peg_keypoint_bottom_pose[:3, 3]
@@ -205,6 +206,8 @@ def generate_one_im_anno(cnt, cam_name_list, peg_top, peg_bottom, hole_top, hole
                                          [float(v) for v in hole_keypoint_bottom_in_camera]],
             # '3d_keypoint_camera_frame':[ [float(v) for v in peg_keypoint_bottom_in_camera],
             #                         [float(v) for v in hole_keypoint_top_in_camera]],
+            'hole_keypoint_obj_top_pose_in_world': hole_keypoint_top_pose.tolist(),
+            'hole_keypoint_obj_bottom_pose_in_world': hole_keypoint_obj_bottom_pose.tolist(),
             'bbox_bottom_right_xy': bbox_bottom_right_xy,
             'bbox_top_left_xy': bbox_top_left_xy,
             'camera_to_world': camera_to_world,
@@ -349,7 +352,7 @@ def getFootPoint(point, line_p1, line_p2):
 def main():
     rob_arm = SingleRoboticArm()
     data_root = '/home/luben/data/pdc/logs_proto'
-    date = '2021-12-30'
+    date = '2022-01-16'
     anno_data = 'insertion_xyzrot_eye_close_' + date + '/processed'
     im_data = 'insertion_xyzrot_eye_close_' + date + '/processed/images'
     anno_data_path = os.path.join(data_root, anno_data)
@@ -371,6 +374,7 @@ def main():
     peg_bottom = 'peg_dummy_bottom'
     hole_top = 'hole_keypoint_top'
     hole_bottom = 'hole_keypoint_bottom'
+    hole_obj_bottom = 'hole_keypoint_obj_bottom'
     peg_name = 'peg_in_arm'
     hole_name = 'hole'
     move_record = True
@@ -500,9 +504,13 @@ def main():
                     gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
                     pre_xyz = gripper_pose[:3, 3]
                     pre_rot = gripper_pose[:3, :3]
-
-                    info = generate_one_im_anno(cnt, cam_name_list, peg_top, peg_bottom, hole_top, hole_bottom, rob_arm,
-                                                im_data_path, delta_rotation, delta_translation, gripper_pose, step_size, r_euler)
+                    try:
+                        info = generate_one_im_anno(cnt, cam_name_list, peg_top, peg_bottom, hole_top, hole_bottom,
+                                                hole_obj_bottom, rob_arm,
+                                                im_data_path, delta_rotation, delta_translation, gripper_pose,
+                                                step_size, r_euler)
+                    except:
+                        continue
                     info_dic[cnt] = info
                     cnt += 1*len(cam_name_list)
 
@@ -541,7 +549,13 @@ def main():
                         print('delta_translation', delta_translation)
                         print('delta_rotation', delta_rotation)
                         print('r_euler', r_euler)
-                        info = generate_one_im_anno(cnt, cam_name_list, peg_top, peg_bottom, hole_top, hole_bottom, rob_arm, im_data_path, delta_rotation, delta_translation, gripper_pose, step_size, r_euler)
+                        try:
+                            info = generate_one_im_anno(cnt, cam_name_list, peg_top, peg_bottom, hole_top, hole_bottom,
+                                                    hole_obj_bottom, rob_arm,
+                                                    im_data_path, delta_rotation, delta_translation, gripper_pose,
+                                                    step_size, r_euler)
+                        except:
+                            continue
                         info_dic[cnt] = info
                         cnt += 1*len(cam_name_list)
                         pre_rot = cnt_rot.copy()
@@ -572,10 +586,13 @@ def main():
                 print('r_euler', r_euler)
                 # step_size is not used here
                 step_size = 0
-
-                info = generate_one_im_anno(cnt, cam_name_list, peg_top, peg_bottom, hole_top, hole_bottom, rob_arm,
+                try:
+                    info = generate_one_im_anno(cnt, cam_name_list, peg_top, peg_bottom, hole_top, hole_bottom,
+                                            hole_obj_bottom, rob_arm,
                                             im_data_path, delta_rotation, delta_translation, gripper_pose, step_size,
                                             r_euler)
+                except:
+                    continue
                 info_dic[cnt] = info
                 cnt += 1*len(cam_name_list)
             else:
