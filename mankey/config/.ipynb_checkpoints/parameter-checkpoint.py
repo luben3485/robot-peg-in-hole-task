@@ -10,6 +10,7 @@ target_heatmap_key = 'target_heatmap'
 delta_rot_key = 'delta_rotation_matrix'
 delta_rot_cls_key = 'cls'
 delta_xyz_key = 'delta_translation'
+unit_delta_xyz_key = 'unit_delta_translation'
 gripper_pose_key = 'gripper_pose'
 step_size_key = 'step_size'
 

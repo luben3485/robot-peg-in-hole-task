@@ -52,9 +52,10 @@ class SupervisedKeypointDBEntry:
     # xyzrot
     delta_rotation_matrix = np.ndarray(shape=[3, 3])
     delta_translation = np.ndarray(shape=[3,])
+    unit_delta_translation = np.ndarray(shape=[3,])
     gripper_pose = np.ndarray(shape=[4, 4])
     step_size = np.ndarray(shape=[1,])
-    
+
 
 def sanity_check_spartan(entry: SupervisedKeypointDBEntry) -> bool:
     if len(entry.rgb_image_path) < 1 or (not os.path.exists(entry.rgb_image_path)):

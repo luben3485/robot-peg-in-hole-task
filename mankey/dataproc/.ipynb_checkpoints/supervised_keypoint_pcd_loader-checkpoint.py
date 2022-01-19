@@ -71,6 +71,7 @@ class ProcessedEntry:
     # xyzrot
     delta_rotation_matrix = np.ndarray(shape=[])
     delta_translation = np.ndarray(shape=[])
+    unit_delta_translation = np.ndarray(shape=[])
     gripper_pose = np.ndarray(shape=[])
     step_size = np.ndarray(shape=[])
 
@@ -173,6 +174,7 @@ class SupervisedKeypointDataset(data.Dataset):
             parameter.delta_rot_key: processed_entry.delta_rotation_matrix.astype(np.float32),
             #parameter.delta_rot_cls_key: processed_entry.delta_rot_cls.astype(np.int),
             parameter.delta_xyz_key: processed_entry.delta_translation.astype(np.float32),
+            parameter.unit_delta_xyz_key: processed_entry.unit_delta_translation.astype(np.float32),
             parameter.gripper_pose_key: processed_entry.gripper_pose.astype(np.float32),
             parameter.step_size_key: processed_entry.step_size.astype(np.float32)
         }
@@ -224,6 +226,7 @@ class SupervisedKeypointDataset(data.Dataset):
         
         # xyzrot
         processed_entry.delta_translation = entry.delta_translation
+        processed_entry.unit_delta_translation = entry.unit_delta_translation
         processed_entry.delta_rotation_matrix = entry.delta_rotation_matrix
         processed_entry.gripper_pose = entry.gripper_pose
         processed_entry.step_size = entry.step_size

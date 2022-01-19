@@ -191,8 +191,17 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         #entry.delta_rot_cls = np.array(image_map['cls']).reshape((3,))
         entry.delta_translation = np.array(image_map['delta_translation']).reshape((3,))
         entry.gripper_pose = np.array(image_map['gripper_pose']).reshape((4,4))
-        step_size_value = max(min(image_map['step_size'], 1.0), 0.0)
-        entry.step_size = np.array([step_size_value]).reshape((1,))
+        #step_size_value = max(min(image_map['step_size'], 1.0), 0.0)
+        step_size_value = np.linalg.norm(entry.delta_translation)
+        if step_size_value == 0:
+            entry.unit_delta_translation = entry.delta_translation
+        else:
+            entry.unit_delta_translation = entry.delta_translation / step_size_value
+        step_size_value = step_size_value*100
+        if step_size_value >= 1.0:
+            entry.step_size = np.array([1.0]).reshape((1,))
+        else:
+            entry.step_size = np.array([step_size_value]).reshape((1,))
 
         # The camera pose in world
         camera2world_map = image_map['camera_to_world']
