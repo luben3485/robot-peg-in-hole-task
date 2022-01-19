@@ -79,7 +79,7 @@ def inplace_relu(m):
         m.inplace=True
         
 
-def test(model, loader, out_channel, criterion_rmse, criterion_cos):
+def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bce):
     rot_error = []
     xyz_error = []
     heatmap_error = []
@@ -118,7 +118,7 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos):
         loss_r = criterion_rmse(delta_rot_pred, delta_rot)
         #loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
         loss_t = (1-criterion_cos(delta_xyz_pred, unit_delta_xyz)).mean()
-        loss_step_size = criterion_rmse(step_size_pred, step_size)
+        loss_step_size = criterion_bce(step_size_pred, step_size)
         
         rot_error.append(loss_r.item())
         xyz_error.append(loss_t.item())
@@ -296,7 +296,7 @@ def main(args):
         log_string('Train Step size Error: %f' % train_step_size_error)
 
         with torch.no_grad():
-            rot_error, xyz_error, heatmap_error, step_size_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos)
+            rot_error, xyz_error, heatmap_error, step_size_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce)
             
             log_string('Test Rotation Error: %f, Translation Error: %f, Heatmap Error: %f, Step size Error: %f' % (rot_error, xyz_error, heatmap_error, step_size_error))
             log_string('Best Rotation Error: %f, Translation Error: %f, Heatmap Error: %f, Step size Error: %f' % (best_rot_error, best_xyz_error, best_heatmap_error, best_step_size_error))
