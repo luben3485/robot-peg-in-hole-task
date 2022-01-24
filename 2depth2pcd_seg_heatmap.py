@@ -33,7 +33,7 @@ def depth_2_pcd(depth, factor, K):
 
 def main():
 
-    data_root = '/tmp2/r09944001/data/pdc/logs_proto/insertion_xyzrot_eye_2022-01-12/processed'
+    data_root = '/tmp2/r09944001/data/pdc/logs_proto/insertion_xyzrot_eye_2022-01-16/processed'
     image_folder_path = os.path.join(data_root, 'images')
     pcd_folder_path = os.path.join(data_root, 'pcd')
     pcd_seg_heatmap_folder_path = os.path.join(data_root, 'pcd_seg_heatmap')

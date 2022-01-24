@@ -5,7 +5,7 @@ Date: Nov 2019
 
 import os
 '''HYPER PARAMETER'''
-os.environ["CUDA_VISIBLE_DEVICES"] = '7'
+os.environ["CUDA_VISIBLE_DEVICES"] = '4'
 import sys
 import torch
 from torch.utils.data import DataLoader
@@ -38,7 +38,7 @@ def parse_args():
     parser.add_argument('--use_cpu', action='store_true', default=False, help='use cpu mode')
     #parser.add_argument('--gpu', type=str, default='0', help='specify gpu device')
     parser.add_argument('--batch_size', type=int, default=8, help='batch size in training')
-    parser.add_argument('--model', default='pointnet2_reg_seg_heatmap_msg', help='model name [default: pointnet_cls]')
+    parser.add_argument('--model', default='pointnet2_reg_seg_heatmap_msg_v2', help='model name [default: pointnet_cls]')
     parser.add_argument('--out_channel', default=9, type=int)
     parser.add_argument('--epoch', default=200, type=int, help='number of epoch in training')
     parser.add_argument('--learning_rate', default=0.001, type=float, help='learning rate in training')
@@ -134,7 +134,7 @@ def main(args):
     timestr = str(datetime.datetime.now().strftime('%Y-%m-%d_%H-%M'))
     exp_dir = Path('./log/')
     exp_dir.mkdir(exist_ok=True)
-    exp_dir = exp_dir.joinpath('reg_seg_heatmap')
+    exp_dir = exp_dir.joinpath('reg_seg_heatmap_v2')
     exp_dir.mkdir(exist_ok=True)
     if args.log_dir is None:
         exp_dir = exp_dir.joinpath(timestr)
@@ -175,7 +175,7 @@ def main(args):
     model = importlib.import_module(args.model)
     shutil.copy('./models/%s.py' % args.model, str(exp_dir))
     shutil.copy('models/pointnet2_utils.py', str(exp_dir))
-    shutil.copy('./train_pointnet2_reg_seg_heatmap.py', str(exp_dir))
+    shutil.copy('./train_pointnet2_reg_seg_heatmap_v2.py', str(exp_dir))
 
     #network = model.get_model(out_channel, normal_channel=args.use_normals)
     network = model.get_model(out_channel)
