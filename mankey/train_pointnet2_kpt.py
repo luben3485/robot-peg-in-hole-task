@@ -27,6 +27,7 @@ from dataproc.supervised_keypoint_pcd_loader import SupervisedKeypointDatasetCon
 
 from network.loss import RMSELoss
 from models.utils import compute_rotation_matrix_from_ortho6d
+from models.loss import OFLoss
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = BASE_DIR
@@ -79,59 +80,71 @@ def inplace_relu(m):
         m.inplace=True
         
 
-def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bce):
+def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof):
+    '''
     rot_error = []
     xyz_error = []
     heatmap_error = []
     step_size_error = []
+    '''
+    kptof_error = []
     network = model.eval()
 
     for j, data in tqdm(enumerate(loader), total=len(loader)):
         points = data[parameter.pcd_key].numpy()
-        points = provider.normalize_data(points)
+        #points = provider.normalize_data(points)
         points = torch.Tensor(points)
-        delta_rot = data[parameter.delta_rot_key]
-        delta_xyz = data[parameter.delta_xyz_key]
-        heatmap_target = data[parameter.heatmap_key]
-        segmentation_target = data[parameter.segmentation_key]
-        unit_delta_xyz = data[parameter.unit_delta_xyz_key]
-        step_size = data[parameter.step_size_key]
-
+        kpt_of_gt = data[parameter.kpt_of_key]
+        #delta_rot = data[parameter.delta_rot_key]
+        #delta_xyz = data[parameter.delta_xyz_key]
+        #heatmap_target = data[parameter.heatmap_key]
+        #segmentation_target = data[parameter.segmentation_key]
+        #unit_delta_xyz = data[parameter.unit_delta_xyz_key]
+        #step_size = data[parameter.step_size_key]
         if not args.use_cpu:
             points = points.cuda()
+            kpt_of_gt = kpt_of_gt.cuda()
+            '''
             delta_rot = delta_rot.cuda()
             delta_xyz = delta_xyz.cuda()
             unit_delta_xyz = unit_delta_xyz.cuda()
             step_size = step_size.cuda()
             heatmap_target = heatmap_target.cuda()
-            
+            '''
         points = points.transpose(2, 1)
-        heatmap_pred, action_pred, step_size_pred = network(points)
-        
+        #heatmap_pred, action_pred, step_size_pred = network(points)
+        kpt_of_pred = network(points)
+        '''
         # action control
         delta_rot_pred_6d = action_pred[:, 0:6]
         delta_rot_pred = compute_rotation_matrix_from_ortho6d(delta_rot_pred_6d, args.use_cpu) # batch*3*3
         delta_xyz_pred = action_pred[:, 6:9].view(-1,3) # batch*3
-
+        '''
         # loss computation
+        loss_kptof = criterion_kptof(kpt_of_pred, kpt_of_gt).sum()
+        '''
         loss_heatmap = criterion_rmse(heatmap_pred, heatmap_target)
         loss_r = criterion_rmse(delta_rot_pred, delta_rot)
         #loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
         loss_t = (1-criterion_cos(delta_xyz_pred, unit_delta_xyz)).mean()
         loss_step_size = criterion_bce(step_size_pred, step_size)
-        
+        '''
+        kptof_error.append(loss_kptof.item())
+        '''
         rot_error.append(loss_r.item())
         xyz_error.append(loss_t.item())
         heatmap_error.append(loss_heatmap.item())
         step_size_error.append(loss_step_size.item())
-    
+        '''
+    kptof_error = sum(kptof_error) / len(kptof_error)
+    '''
     rot_error = sum(rot_error) / len(rot_error)
     xyz_error = sum(xyz_error) / len(xyz_error)
     heatmap_error = sum(heatmap_error) / len(heatmap_error)
     step_size_error = sum(step_size_error) / len(step_size_error)
-    
-    return rot_error, xyz_error, heatmap_error, step_size_error
-
+    '''
+    #return rot_error, xyz_error, heatmap_error, step_size_error
+    return kptof_error
 
 def main(args):
     def log_string(str):
@@ -191,13 +204,15 @@ def main(args):
     criterion_rmse = RMSELoss()
     criterion_cos = torch.nn.CosineSimilarity(dim=1)
     criterion_bce = torch.nn.BCELoss()
-    
+    criterion_kptof = OFLoss()
     network.apply(inplace_relu)
 
     if not args.use_cpu:
         network = network.cuda()
         criterion_rmse = criterion_rmse.cuda()
         criterion_cos = criterion_cos.cuda()
+        criterion_bce = criterion_bce.cuda()
+        criterion_kptof = criterion_kptof.cuda()
     try:
         checkpoint = torch.load(str(exp_dir) + '/checkpoints/best_model.pth')
         start_epoch = checkpoint['epoch']
@@ -225,6 +240,7 @@ def main(args):
     best_xyz_error = 99.9
     best_heatmap_error = 99.9
     best_step_size_error = 99.9
+    best_kptof_error = 99.9
 
     '''TRANING'''
     logger.info('Start training...')
@@ -234,30 +250,31 @@ def main(args):
         train_xyz_error = []
         train_heatmap_error = []
         train_step_size_error = []
+        train_kptof_error = []
         network = network.train()
 
         scheduler.step()
         for batch_id, data in tqdm(enumerate(trainDataLoader, 0), total=len(trainDataLoader), smoothing=0.9):
             optimizer.zero_grad()
-            
             points =  data[parameter.pcd_key].numpy()
+            # Because we need to predcit 3d keypoint, we don't do augmentation here.
             #points = provider.normalize_data(points)
             #points = provider.random_point_dropout(points)
             #points[:, :, 0:3] = provider.random_scale_point_cloud(points[:, :, 0:3])
             #points[:, :, 0:3] = provider.shift_point_cloud(points[:, :, 0:3])
             points = torch.Tensor(points)
             points = points.transpose(2, 1)
-            heatmap_target = data[parameter.heatmap_key]
-            segmentation_target = data[parameter.segmentation_key]
-            #print('heatmap size', heatmap_target.size())
-            #print('segmentation', segmentation_target.size())
-            delta_rot = data[parameter.delta_rot_key]
-            delta_xyz = data[parameter.delta_xyz_key]
-            unit_delta_xyz = data[parameter.unit_delta_xyz_key]
-            step_size = data[parameter.step_size_key]
+            #heatmap_target = data[parameter.heatmap_key]
+            #segmentation_target = data[parameter.segmentation_key]
+            #delta_rot = data[parameter.delta_rot_key]
+            #delta_xyz = data[parameter.delta_xyz_key]
+            #unit_delta_xyz = data[parameter.unit_delta_xyz_key]
+            #step_size = data[parameter.step_size_key]
+            kpt_of_gt = data[parameter.kpt_of_key]
             
             if not args.use_cpu:
                 points = points.cuda()
+                kpt_of_gt = kpt_of_gt.cuda()
                 '''
                 delta_rot = delta_rot.cuda()
                 delta_xyz = delta_xyz.cuda()
@@ -265,43 +282,60 @@ def main(args):
                 unit_delta_xyz = unit_delta_xyz.cuda()
                 step_size = step_size.cuda()
                 '''
+            kpt_of_pred = network(points)
+            loss_kptof = criterion_kptof(kpt_of_pred, kpt_of_gt).sum()
+            '''
             heatmap_pred, action_pred, step_size_pred = network(points)
             # action control
             delta_rot_pred_6d = action_pred[:, 0:6]
             delta_rot_pred = compute_rotation_matrix_from_ortho6d(delta_rot_pred_6d, args.use_cpu) # batch*3*3
             delta_xyz_pred = action_pred[:, 6:9].view(-1,3) # batch*3
-            
+            '''
             # loss computation
+            '''
             loss_heatmap = criterion_rmse(heatmap_pred, heatmap_target)
             loss_r = criterion_rmse(delta_rot_pred, delta_rot)
             #loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
             loss_t = (1-criterion_cos(delta_xyz_pred, unit_delta_xyz)).mean()
             loss_step_size = criterion_bce(step_size_pred, step_size)
             loss = loss_r + loss_t + loss_heatmap + loss_step_size
+            '''
+            loss = loss_kptof
             loss.backward()
             optimizer.step()
             global_step += 1
             
+            '''
             train_rot_error.append(loss_r.item())
             train_xyz_error.append(loss_t.item())
             train_heatmap_error.append(loss_heatmap.item())
             train_step_size_error.append(loss_step_size.item())
+            '''
+            train_kptof_error.append(loss_kptof.item())
             
+        '''
         train_rot_error = sum(train_rot_error) / len(train_rot_error)
         train_xyz_error = sum(train_xyz_error) / len(train_xyz_error)
         train_heatmap_error = sum(train_heatmap_error) / len(train_heatmap_error)
         train_step_size_error = sum(train_step_size_error) / len(train_step_size_error)
+        '''
+        train_kptof_error = sum(train_kptof_error) / len(train_kptof_error)
+        '''
         log_string('Train Rotation Error: %f' % train_rot_error)
         log_string('Train Translation Error: %f' % train_xyz_error)
         log_string('Train Heatmap Error: %f' % train_xyz_error)
         log_string('Train Step size Error: %f' % train_step_size_error)
-
+        '''
+        log_string('Train Keypoint Offset Error: %f' % train_kptof_error)
         with torch.no_grad():
-            rot_error, xyz_error, heatmap_error, step_size_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce)
+            #rot_error, xyz_error, heatmap_error, step_size_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce)
+            kptof_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof)
             
-            log_string('Test Rotation Error: %f, Translation Error: %f, Heatmap Error: %f, Step size Error: %f' % (rot_error, xyz_error, heatmap_error, step_size_error))
-            log_string('Best Rotation Error: %f, Translation Error: %f, Heatmap Error: %f, Step size Error: %f' % (best_rot_error, best_xyz_error, best_heatmap_error, best_step_size_error))
-            
+            #log_string('Test Rotation Error: %f, Translation Error: %f, Heatmap Error: %f, Step size Error: %f' % (rot_error, xyz_error, heatmap_error, step_size_error))
+            #log_string('Best Rotation Error: %f, Translation Error: %f, Heatmap Error: %f, Step size Error: %f' % (best_rot_error, best_xyz_error, best_heatmap_error, best_step_size_error))
+            log_string('Test Keypoint offset Error: %f' % (kptof_error))
+            log_string('Best Keypoint offset Error: %f' % (best_kptof_error))
+            '''
             if (rot_error + xyz_error + heatmap_error + step_size_error) < (best_rot_error + best_xyz_error + best_heatmap_error + best_step_size_error):
                 best_rot_error = rot_error
                 best_xyz_error = xyz_error
@@ -317,6 +351,21 @@ def main(args):
                     'xyz_error': xyz_error,
                     'heatmap_error': heatmap_error,
                     'step_size_error': step_size_error,
+                    'model_state_dict': network.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                }
+                torch.save(state, savepath)
+            global_epoch += 1
+            '''
+            if (kptof_error) < (best_kptof_error):
+                best_kptof_error = kptof_error
+                best_epoch = epoch + 1
+                logger.info('Save model...')
+                savepath = str(checkpoints_dir) + '/best_model.pth'
+                log_string('Saving at %s' % savepath)
+                state = {
+                    'epoch': best_epoch,
+                    'kptof_error': kptof_error,
                     'model_state_dict': network.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                 }

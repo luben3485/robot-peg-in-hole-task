@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pointnet2_utils import PointNetSetAbstractionMsg, PointNetFeaturePropagation, PointNetSetAbstraction
+from models.pointnet2_utils import PointNetSetAbstractionMsg, PointNetFeaturePropagation, PointNetSetAbstraction
 
 
 class pointnet2_backbone(nn.Module):
@@ -66,7 +66,8 @@ class kpt_of_net(nn.Module):
         point_features = F.relu(self.bn1(self.conv1(point_features)))
         point_features = F.relu(self.bn2(self.conv2(point_features)))
         kpt_of_pred = self.conv3(point_features)
-        
+        kpt_of_pred = kpt_of_pred.permute(0, 2, 1) # (B, N, C)
+
         return kpt_of_pred
     
     
@@ -203,5 +204,5 @@ if __name__ == '__main__':
     model = get_model(9)
     xyz = torch.rand(6, 3, 1024) # (B, N, 3)
     kpt_of_pred = model(xyz)
-    print(kpt_of_pred.size())
+    print(kpt_of_pred.size()) # (B, N, 3)
     

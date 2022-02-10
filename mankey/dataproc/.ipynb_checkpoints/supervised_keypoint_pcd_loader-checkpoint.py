@@ -79,6 +79,7 @@ class ProcessedEntry:
     pcd = np.ndarray(shape=[])
     heatmap = np.ndarray(shape=[])
     segmentation = np.ndarray(shape=[])
+    kpt_of = np.ndarray(shape=[])
     
     # Some method to check the existance of entry
     @property
@@ -168,6 +169,7 @@ class SupervisedKeypointDataset(data.Dataset):
             parameter.pcd_key: processed_entry.pcd.astype(np.float32),
             parameter.heatmap_key: processed_entry.heatmap.astype(np.float32),
             parameter.segmentation_key: processed_entry.segmentation.astype(np.float32),
+            parameter.kpt_of_key: processed_entry.kpt_of.astype(np.float32),
             parameter.keypoint_xyd_key: normalized_keypoint_xy_depth.astype(np.float32),
             parameter.keypoint_validity_key: validity.astype(np.float32),
             parameter.target_heatmap_key: processed_entry.target_heatmap.astype(np.float32),
@@ -237,6 +239,7 @@ class SupervisedKeypointDataset(data.Dataset):
         processed_entry.pcd = pcd_raw[:, :3].reshape(-1,3)
         processed_entry.heatmap = pcd_raw[:, 4].reshape(-1,1)
         processed_entry.segmentation = pcd_raw[:, 3] .reshape(-1,1)
+        processed_entry.kpt_of = pcd_raw[:, 5:] .reshape(-1,3)
                               
         # Compute the guassian heatmap
         n_keypoint = pixelxy_depth.shape[1]

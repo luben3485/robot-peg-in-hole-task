@@ -13,6 +13,7 @@ delta_xyz_key = 'delta_translation'
 unit_delta_xyz_key = 'unit_delta_translation'
 gripper_pose_key = 'gripper_pose'
 step_size_key = 'step_size'
+kpt_of_key = 'kpt_of'
 
 # The bounding box given by Database is tight, make it losser
 bbox_scale = 1.25
