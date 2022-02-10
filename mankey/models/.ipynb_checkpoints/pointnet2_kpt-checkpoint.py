@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models.pointnet2_utils import PointNetSetAbstractionMsg, PointNetFeaturePropagation, PointNetSetAbstraction
+from pointnet2_utils import PointNetSetAbstractionMsg, PointNetFeaturePropagation, PointNetSetAbstraction
 
 
 class pointnet2_backbone(nn.Module):
@@ -50,6 +50,26 @@ class pointnet2_backbone(nn.Module):
         x = x.permute(0, 2, 1)
         return x, l4_points
         '''
+        
+        
+class kpt_of_net(nn.Module):
+    def __init__(self):
+        super(kpt_of_net, self).__init__()
+        self.conv1 = nn.Conv1d(128, 64, 1)
+        self.bn1 = nn.BatchNorm1d(64)
+        self.conv2 = nn.Conv1d(64, 32, 1)
+        self.bn2 = nn.BatchNorm1d(32)
+        self.conv3 = nn.Conv1d(32, 3, 1)
+    
+    def forward(self, point_features):
+        point_features = point_features.permute(0,2,1)
+        point_features = F.relu(self.bn1(self.conv1(point_features)))
+        point_features = F.relu(self.bn2(self.conv2(point_features)))
+        kpt_of_pred = self.conv3(point_features)
+        
+        return kpt_of_pred
+    
+    
 class mask_net(nn.Module):
     def __init__(self):
         super(mask_net, self).__init__()
@@ -66,6 +86,7 @@ class mask_net(nn.Module):
         mask = point_features.permute(0, 2, 1)
 
         return mask 
+    
     
 class heatmap_net(nn.Module):
     def __init__(self):
@@ -107,6 +128,7 @@ class heatmap_net(nn.Module):
         '''
         return heatmap
     
+    
 class action_net(nn.Module):
     def __init__(self, out_channel):
         super(action_net, self).__init__()
@@ -133,7 +155,6 @@ class action_net(nn.Module):
         self.fc7_2 = nn.Linear(64,1)
         self.sigmoid = nn.Sigmoid()
 
-        
     def forward(self, global_features, heatmap):
         heatmap = heatmap.view(-1, 16000)
         heatmap = self.drop1(F.relu(self.bn1(self.fc1(heatmap))))
@@ -148,22 +169,26 @@ class action_net(nn.Module):
         scalar = self.sigmoid(self.fc7_2(scalar))
         return action, scalar
         
+        
 class get_model(nn.Module):
     def __init__(self, action_out_channel):
         super(get_model, self).__init__()
         self.action_out_channel = action_out_channel
         self.backbone = pointnet2_backbone()
-        self.masknet = mask_net()
-        self.heatmapnet = heatmap_net()
-        self.actionnet = action_net(self.action_out_channel)
+        #self.masknet = mask_net()
+        #self.heatmapnet = heatmap_net()
+        #self.actionnet = action_net(self.action_out_channel)
+        self.kpt_of_net = kpt_of_net()
         
     def forward(self, xyz):
         global_features, point_features = self.backbone(xyz)
+        '''
         #mask = self.masknet(global_features, point_features)
         heatmap = self.heatmapnet(global_features, point_features)
         #filtered_heatmap = torch.mul(mask, heatmap)
         action, scalar = self.actionnet(global_features, heatmap)
-        
+        '''
+        kpt_of_pred = self.kpt_of_net(point_features)
         #print('global features:', global_features.size())
         #print('point features', point_features.size())
         #print('mask:', mask.size())
@@ -171,40 +196,12 @@ class get_model(nn.Module):
         #print('filtered_heatmap:', filtered_heatmap.size())
         #print('action:', action.size())
 
-        return heatmap, action, scalar
-'''
-class get_loss(nn.Module):
-    def __init__(self):
-        super(get_loss, self).__init__()
-    def forward(self, pred, target, trans_feat, weight):
-        total_loss = F.nll_loss(pred, target, weight=weight)
+        return kpt_of_pred
 
-        return total_loss
-'''
-'''
-class FocalLoss(nn.Module):
-    def __init__(self, alpha=0.25, gamma=2, logits=False, reduce=False , weight=1):
-        super(FocalLoss, self).__init__()
-        self.alpha = alpha
-        self.gamma = gamma
-        self.logits = logits
-        self.reduce = reduce
-        self.weight = weight
-
-    def forward(self, inputs, targets):
-
-        F_loss = -(targets >= 0.4).float() *self.alpha*((1.-inputs)**self.gamma)*torch.log(inputs+1e-8)\
-                        -(1.-(targets >= 0.4).float())*(1.-self.alpha)*(inputs** self.gamma)*torch.log(1.-inputs+1e-8)
-
-        if self.reduce:
-            return F_loss*60
-        else:
-            return F_loss*60
-'''
+    
 if __name__ == '__main__':
-    '''
-    import  torch
-    model = get_model(13)
-    xyz = torch.rand(6, 9, 2048)
-    (model(xyz))
-    '''
+    model = get_model(9)
+    xyz = torch.rand(6, 3, 1024) # (B, N, 3)
+    kpt_of_pred = model(xyz)
+    print(kpt_of_pred.size())
+    
