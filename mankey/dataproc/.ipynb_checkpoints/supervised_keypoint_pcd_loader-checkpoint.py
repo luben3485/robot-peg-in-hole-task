@@ -178,7 +178,9 @@ class SupervisedKeypointDataset(data.Dataset):
             parameter.delta_xyz_key: processed_entry.delta_translation.astype(np.float32),
             parameter.unit_delta_xyz_key: processed_entry.unit_delta_translation.astype(np.float32),
             parameter.gripper_pose_key: processed_entry.gripper_pose.astype(np.float32),
-            parameter.step_size_key: processed_entry.step_size.astype(np.float32)
+            parameter.step_size_key: processed_entry.step_size.astype(np.float32),
+            parameter.pcd_centroid_key: processed_entry.pcd_centroid.astype(np.float32),
+            parameter.pcd_mean_key: processed_entry.pcd_mean.astype(np.float32)
         }
         #return stacked_tensor, normalized_keypoint_xy_depth.astype(np.float32), \
         #       validity.astype(np.float32), processed_entry.target_heatmap.astype(np.float32)
@@ -238,8 +240,10 @@ class SupervisedKeypointDataset(data.Dataset):
         pcd_raw = np.load(entry.pcd_path)
         processed_entry.pcd = pcd_raw[:, :3].reshape(-1,3)
         processed_entry.heatmap = pcd_raw[:, 4].reshape(-1,1)
-        processed_entry.segmentation = pcd_raw[:, 3] .reshape(-1,1)
-        processed_entry.kpt_of = pcd_raw[:, 5:] .reshape(-1,3)
+        processed_entry.segmentation = pcd_raw[:, 3].reshape(-1,1)
+        processed_entry.kpt_of = pcd_raw[:, 5:].reshape(-1,3)
+        processed_entry.pcd_centroid = entry.pcd_centroid.reshape(3,)
+        processed_entry.pcd_mean = entry.pcd_mean.reshape(1,)
                               
         # Compute the guassian heatmap
         n_keypoint = pixelxy_depth.shape[1]

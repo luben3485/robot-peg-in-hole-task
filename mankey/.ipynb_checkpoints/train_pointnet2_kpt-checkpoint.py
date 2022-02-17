@@ -88,6 +88,7 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
     step_size_error = []
     '''
     kptof_error = []
+    xyz_error = []
     network = model.eval()
 
     for j, data in tqdm(enumerate(loader), total=len(loader)):
@@ -95,8 +96,11 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
         #points = provider.normalize_data(points)
         points = torch.Tensor(points)
         kpt_of_gt = data[parameter.kpt_of_key]
+        pcd_centroid = data[parameter.pcd_centroid_key]
+        pcd_mean = data[parameter.pcd_mean_key]
+        gripper_pose = data[parameter.gripper_pose_key]
+        delta_xyz = data[parameter.delta_xyz_key]
         #delta_rot = data[parameter.delta_rot_key]
-        #delta_xyz = data[parameter.delta_xyz_key]
         #heatmap_target = data[parameter.heatmap_key]
         #segmentation_target = data[parameter.segmentation_key]
         #unit_delta_xyz = data[parameter.unit_delta_xyz_key]
@@ -104,6 +108,10 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
         if not args.use_cpu:
             points = points.cuda()
             kpt_of_gt = kpt_of_gt.cuda()
+            delta_xyz = delta_xyz.cuda()
+            pcd_centroid = pcd_centroid.cuda()
+            pcd_mean = pcd_mean.cuda()
+            gripper_pose = gripper_pose.cuda()
             '''
             delta_rot = delta_rot.cuda()
             delta_xyz = delta_xyz.cuda()
@@ -113,7 +121,13 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
             '''
         points = points.transpose(2, 1)
         #heatmap_pred, action_pred, step_size_pred = network(points)
-        kpt_of_pred = network(points)
+        gripper_pos = gripper_pose[:, :3, 3]
+        kpt_of_pred, trans_of_pred = network(points)
+        mean_kpt_of_pred = torch.mean(kpt_of_pred, dim=1)
+        real_kpt_of_pred = (mean_kpt_of_pred * pcd_mean) + pcd_centroid
+        real_kpt_of_pred = real_kpt_of_pred / 1000  #unit: mm to m
+        real_trans_of_pred = (trans_of_pred * pcd_mean) / 1000 #unit: mm to m
+        delta_trans_pred = real_kpt_of_pred - gripper_pos + real_trans_of_pred
         '''
         # action control
         delta_rot_pred_6d = action_pred[:, 0:6]
@@ -122,6 +136,7 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
         '''
         # loss computation
         loss_kptof = criterion_kptof(kpt_of_pred, kpt_of_gt).sum()
+        loss_t = (1-criterion_cos(delta_trans_pred, delta_xyz)).mean() + criterion_rmse(delta_trans_pred, delta_xyz)
         '''
         loss_heatmap = criterion_rmse(heatmap_pred, heatmap_target)
         loss_r = criterion_rmse(delta_rot_pred, delta_rot)
@@ -130,6 +145,7 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
         loss_step_size = criterion_bce(step_size_pred, step_size)
         '''
         kptof_error.append(loss_kptof.item())
+        xyz_error.append(loss_t.item())
         '''
         rot_error.append(loss_r.item())
         xyz_error.append(loss_t.item())
@@ -137,6 +153,7 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
         step_size_error.append(loss_step_size.item())
         '''
     kptof_error = sum(kptof_error) / len(kptof_error)
+    xyz_error = sum(xyz_error) / len(xyz_error)
     '''
     rot_error = sum(rot_error) / len(rot_error)
     xyz_error = sum(xyz_error) / len(xyz_error)
@@ -144,7 +161,7 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
     step_size_error = sum(step_size_error) / len(step_size_error)
     '''
     #return rot_error, xyz_error, heatmap_error, step_size_error
-    return kptof_error
+    return kptof_error, xyz_error
 
 def main(args):
     def log_string(str):
@@ -199,8 +216,7 @@ def main(args):
     shutil.copy('models/pointnet2_utils.py', str(exp_dir))
     shutil.copy('./train_pointnet2_kpt.py', str(exp_dir))
 
-    #network = model.get_model(out_channel, normal_channel=args.use_normals)
-    network = model.get_model(out_channel)
+    network = model.get_model()
     criterion_rmse = RMSELoss()
     criterion_cos = torch.nn.CosineSimilarity(dim=1)
     criterion_bce = torch.nn.BCELoss()
@@ -267,14 +283,21 @@ def main(args):
             #heatmap_target = data[parameter.heatmap_key]
             #segmentation_target = data[parameter.segmentation_key]
             #delta_rot = data[parameter.delta_rot_key]
-            #delta_xyz = data[parameter.delta_xyz_key]
+            delta_xyz = data[parameter.delta_xyz_key]
             #unit_delta_xyz = data[parameter.unit_delta_xyz_key]
             #step_size = data[parameter.step_size_key]
             kpt_of_gt = data[parameter.kpt_of_key]
-            
+            pcd_centroid = data[parameter.pcd_centroid_key]
+            pcd_mean = data[parameter.pcd_mean_key]
+            gripper_pose = data[parameter.gripper_pose_key]
+ 
             if not args.use_cpu:
                 points = points.cuda()
                 kpt_of_gt = kpt_of_gt.cuda()
+                delta_xyz = delta_xyz.cuda()
+                pcd_centroid = pcd_centroid.cuda()
+                pcd_mean = pcd_mean.cuda()
+                gripper_pose = gripper_pose.cuda()
                 '''
                 delta_rot = delta_rot.cuda()
                 delta_xyz = delta_xyz.cuda()
@@ -282,8 +305,14 @@ def main(args):
                 unit_delta_xyz = unit_delta_xyz.cuda()
                 step_size = step_size.cuda()
                 '''
-            kpt_of_pred = network(points)
-            loss_kptof = criterion_kptof(kpt_of_pred, kpt_of_gt).sum()
+            gripper_pos = gripper_pose[:, :3, 3]
+            kpt_of_pred, trans_of_pred = network(points)
+            mean_kpt_of_pred = torch.mean(kpt_of_pred, dim=1)
+            real_kpt_of_pred = (mean_kpt_of_pred * pcd_mean) + pcd_centroid
+            real_kpt_of_pred = real_kpt_of_pred / 1000  #unit: mm to m
+            real_trans_of_pred = (trans_of_pred * pcd_mean) / 1000 #unit: mm to m
+            delta_trans_pred = real_kpt_of_pred - gripper_pos + real_trans_of_pred
+
             '''
             heatmap_pred, action_pred, step_size_pred = network(points)
             # action control
@@ -300,7 +329,9 @@ def main(args):
             loss_step_size = criterion_bce(step_size_pred, step_size)
             loss = loss_r + loss_t + loss_heatmap + loss_step_size
             '''
-            loss = loss_kptof
+            loss_kptof = criterion_kptof(kpt_of_pred, kpt_of_gt).sum()
+            loss_t = (1-criterion_cos(delta_trans_pred, delta_xyz)).mean() + criterion_rmse(delta_trans_pred, delta_xyz)
+            loss = loss_kptof + loss_t
             loss.backward()
             optimizer.step()
             global_step += 1
@@ -312,6 +343,7 @@ def main(args):
             train_step_size_error.append(loss_step_size.item())
             '''
             train_kptof_error.append(loss_kptof.item())
+            train_xyz_error.append(loss_t.item())
             
         '''
         train_rot_error = sum(train_rot_error) / len(train_rot_error)
@@ -320,6 +352,7 @@ def main(args):
         train_step_size_error = sum(train_step_size_error) / len(train_step_size_error)
         '''
         train_kptof_error = sum(train_kptof_error) / len(train_kptof_error)
+        train_xyz_error = sum(train_xyz_error) / len(train_xyz_error)
         '''
         log_string('Train Rotation Error: %f' % train_rot_error)
         log_string('Train Translation Error: %f' % train_xyz_error)
@@ -327,14 +360,15 @@ def main(args):
         log_string('Train Step size Error: %f' % train_step_size_error)
         '''
         log_string('Train Keypoint Offset Error: %f' % train_kptof_error)
+        log_string('Train Translation Error: %f' % train_xyz_error)
         with torch.no_grad():
             #rot_error, xyz_error, heatmap_error, step_size_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce)
-            kptof_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof)
+            kptof_error, xyz_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof)
             
             #log_string('Test Rotation Error: %f, Translation Error: %f, Heatmap Error: %f, Step size Error: %f' % (rot_error, xyz_error, heatmap_error, step_size_error))
             #log_string('Best Rotation Error: %f, Translation Error: %f, Heatmap Error: %f, Step size Error: %f' % (best_rot_error, best_xyz_error, best_heatmap_error, best_step_size_error))
-            log_string('Test Keypoint offset Error: %f' % (kptof_error))
-            log_string('Best Keypoint offset Error: %f' % (best_kptof_error))
+            log_string('Test Keypoint offset Error: %f, Translation Error: %f' % (kptof_error, xyz_error))
+            log_string('Best Keypoint offset Error: %f, Translation Error: %f' % (best_kptof_error, best_xyz_error))
             '''
             if (rot_error + xyz_error + heatmap_error + step_size_error) < (best_rot_error + best_xyz_error + best_heatmap_error + best_step_size_error):
                 best_rot_error = rot_error
@@ -357,8 +391,9 @@ def main(args):
                 torch.save(state, savepath)
             global_epoch += 1
             '''
-            if (kptof_error) < (best_kptof_error):
+            if (kptof_error + xyz_error) < (best_kptof_error + best_xyz_error):
                 best_kptof_error = kptof_error
+                best_xyz_error = xyz_error
                 best_epoch = epoch + 1
                 logger.info('Save model...')
                 savepath = str(checkpoints_dir) + '/best_model.pth'
@@ -366,6 +401,7 @@ def main(args):
                 state = {
                     'epoch': best_epoch,
                     'kptof_error': kptof_error,
+                    'xyz_error': xyz_error,
                     'model_state_dict': network.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                 }

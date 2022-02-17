@@ -14,6 +14,8 @@ unit_delta_xyz_key = 'unit_delta_translation'
 gripper_pose_key = 'gripper_pose'
 step_size_key = 'step_size'
 kpt_of_key = 'kpt_of'
+pcd_centroid = 'pcd_centroid_key'
+pcd_mean_key = 'pcd_mean_key'
 
 # The bounding box given by Database is tight, make it losser
 bbox_scale = 1.25

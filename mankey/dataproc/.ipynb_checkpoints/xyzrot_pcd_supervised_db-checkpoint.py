@@ -179,6 +179,10 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         assert os.path.exists(pcd_path)
         entry.pcd_path = pcd_path
         
+        # pcd centroid & pcd mean
+        entry.pcd_centroid = np.array(image_map['pcd_centroid'])
+        entry.pcd_mean = np.array(image_map['pcd_mean'])
+        
         '''
         # The path for mask image
         mask_name = depth_name[0:6] + '_mask.png'

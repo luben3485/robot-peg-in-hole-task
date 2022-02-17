@@ -131,78 +131,58 @@ class heatmap_net(nn.Module):
     
     
 class action_net(nn.Module):
-    def __init__(self, out_channel):
+    def __init__(self):
         super(action_net, self).__init__()
-        self.fc1 = nn.Linear(16000, 4096)
-        self.bn1 = nn.BatchNorm1d(4096)
+        self.fc1 = nn.Linear(512, 256)
+        self.bn1 = nn.BatchNorm1d(256)
         self.drop1 = nn.Dropout(0.4)
-        self.fc2 = nn.Linear(4096, 1024)
-        self.bn2 = nn.BatchNorm1d(1024)
-        self.drop2 = nn.Dropout(0.5)
-        self.fc3 = nn.Linear(1024, 512)
-        self.bn3 = nn.BatchNorm1d(512)
-        self.drop3 = nn.Dropout(0.5)
-        
-        self.fc4 = nn.Linear(512+512, 512)
-        self.bn4 = nn.BatchNorm1d(512)
-        self.drop4 = nn.Dropout(0.5)
-        self.fc5 = nn.Linear(512, 256)
-        self.bn5 = nn.BatchNorm1d(256)
-        self.drop5 = nn.Dropout(0.5)
-        self.fc6_1 = nn.Linear(256, out_channel)
-        
-        self.fc6_2 = nn.Linear(256, 64)
-        self.bn6_2 = nn.BatchNorm1d(64)
-        self.fc7_2 = nn.Linear(64,1)
-        self.sigmoid = nn.Sigmoid()
+        self.fc2 = nn.Linear(256, 64)
+        self.bn2 = nn.BatchNorm1d(64)
+        self.drop2 = nn.Dropout(0.4)
+        self.fc3 = nn.Linear(64+3, 32)
+        self.bn3 = nn.BatchNorm1d(32)
+        self.fc4 = nn.Linear(32, 3)
 
-    def forward(self, global_features, heatmap):
-        heatmap = heatmap.view(-1, 16000)
-        heatmap = self.drop1(F.relu(self.bn1(self.fc1(heatmap))))
-        heatmap = self.drop2(F.relu(self.bn2(self.fc2(heatmap))))
-        heatmap = self.drop3(F.relu(self.bn3(self.fc3(heatmap))))
-        all_feature = torch.cat((global_features, heatmap) , dim = -1)
-        #print('all feature:', all_feature.size())
-        all_feature = self.drop4(F.relu(self.bn4(self.fc4(all_feature))))
-        all_feature = self.drop5(F.relu(self.bn5(self.fc5(all_feature))))
-        action = self.fc6_1(all_feature)
-        scalar = self.fc6_2(all_feature)
-        scalar = self.sigmoid(self.fc7_2(scalar))
-        return action, scalar
+    def forward(self, global_features, kpt_pos):
+        
+        global_features = self.drop1(F.relu(self.bn1(self.fc1(global_features))))
+        global_features = self.drop2(F.relu(self.bn2(self.fc2(global_features))))
+        all_feature = torch.cat((global_features, kpt_pos) , dim = -1)
+        all_feature = F.relu(self.bn3(self.fc3(all_feature)))
+        trans_of_pred = self.fc4(all_feature)
+        
+        return trans_of_pred
         
         
 class get_model(nn.Module):
-    def __init__(self, action_out_channel):
+    def __init__(self):
         super(get_model, self).__init__()
-        self.action_out_channel = action_out_channel
         self.backbone = pointnet2_backbone()
+        self.kpt_of_net = kpt_of_net()
+        self.actionnet = action_net()
         #self.masknet = mask_net()
         #self.heatmapnet = heatmap_net()
         #self.actionnet = action_net(self.action_out_channel)
-        self.kpt_of_net = kpt_of_net()
+        
         
     def forward(self, xyz):
         global_features, point_features = self.backbone(xyz)
+        kpt_of_pred = self.kpt_of_net(point_features)
+        mean_kpt_of_pred = torch.mean(kpt_of_pred, dim=1)
+        trans_of_pred = self.actionnet(global_features, mean_kpt_of_pred)
         '''
         #mask = self.masknet(global_features, point_features)
         heatmap = self.heatmapnet(global_features, point_features)
         #filtered_heatmap = torch.mul(mask, heatmap)
         action, scalar = self.actionnet(global_features, heatmap)
         '''
-        kpt_of_pred = self.kpt_of_net(point_features)
-        #print('global features:', global_features.size())
-        #print('point features', point_features.size())
-        #print('mask:', mask.size())
-        #print('heatmap:', heatmap.size())
-        #print('filtered_heatmap:', filtered_heatmap.size())
-        #print('action:', action.size())
-
-        return kpt_of_pred
+        return kpt_of_pred, trans_of_pred
 
     
 if __name__ == '__main__':
-    model = get_model(9)
-    xyz = torch.rand(6, 3, 1024) # (B, N, 3)
-    kpt_of_pred = model(xyz)
+    model = get_model()
+    xyz = torch.rand(6, 3, 1024) # (B, 3, N)
+    kpt_of_pred, trans_of_pred = model(xyz)
     print(kpt_of_pred.size()) # (B, N, 3)
+    print(trans_of_pred.size()) # (B, 3)
     

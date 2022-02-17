@@ -55,6 +55,8 @@ class SupervisedKeypointDBEntry:
     unit_delta_translation = np.ndarray(shape=[3,])
     gripper_pose = np.ndarray(shape=[4, 4])
     step_size = np.ndarray(shape=[1,])
+    pcd_centroid = np.ndarray(shape=[3,])
+    pcd_mean = np.ndarray(shape=[1,])
 
 
 def sanity_check_spartan(entry: SupervisedKeypointDBEntry) -> bool:
