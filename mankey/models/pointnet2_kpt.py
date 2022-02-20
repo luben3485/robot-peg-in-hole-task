@@ -143,11 +143,14 @@ class action_net(nn.Module):
         self.bn3 = nn.BatchNorm1d(32)
         self.fc4 = nn.Linear(32, 3)
 
-    def forward(self, global_features, kpt_pos):
+    def forward(self, global_features, kpt_of_pred, xyz):
+        xyz = xyz.permute(0, 2, 1)
+        kpt_pred = xyz - kpt_of_pred
+        mean_kpt_pred = torch.mean(kpt_pred, dim=1)
         
         global_features = self.drop1(F.relu(self.bn1(self.fc1(global_features))))
         global_features = self.drop2(F.relu(self.bn2(self.fc2(global_features))))
-        all_feature = torch.cat((global_features, kpt_pos) , dim = -1)
+        all_feature = torch.cat((global_features, mean_kpt_pred) , dim = -1)
         all_feature = F.relu(self.bn3(self.fc3(all_feature)))
         trans_of_pred = self.fc4(all_feature)
         
@@ -168,14 +171,8 @@ class get_model(nn.Module):
     def forward(self, xyz):
         global_features, point_features = self.backbone(xyz)
         kpt_of_pred = self.kpt_of_net(point_features)
-        mean_kpt_of_pred = torch.mean(kpt_of_pred, dim=1)
-        trans_of_pred = self.actionnet(global_features, mean_kpt_of_pred)
-        '''
-        #mask = self.masknet(global_features, point_features)
-        heatmap = self.heatmapnet(global_features, point_features)
-        #filtered_heatmap = torch.mul(mask, heatmap)
-        action, scalar = self.actionnet(global_features, heatmap)
-        '''
+        trans_of_pred = self.actionnet(global_features, kpt_of_pred, xyz)
+        
         return kpt_of_pred, trans_of_pred
 
     

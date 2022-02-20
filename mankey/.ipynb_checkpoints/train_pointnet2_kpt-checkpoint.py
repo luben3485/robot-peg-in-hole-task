@@ -95,6 +95,7 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
         points = data[parameter.pcd_key].numpy()
         #points = provider.normalize_data(points)
         points = torch.Tensor(points)
+        points = points.transpose(2, 1)
         kpt_of_gt = data[parameter.kpt_of_key]
         pcd_centroid = data[parameter.pcd_centroid_key]
         pcd_mean = data[parameter.pcd_mean_key]
@@ -119,15 +120,16 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
             step_size = step_size.cuda()
             heatmap_target = heatmap_target.cuda()
             '''
-        points = points.transpose(2, 1)
-        #heatmap_pred, action_pred, step_size_pred = network(points)
-        gripper_pos = gripper_pose[:, :3, 3]
         kpt_of_pred, trans_of_pred = network(points)
-        mean_kpt_of_pred = torch.mean(kpt_of_pred, dim=1)
-        real_kpt_of_pred = (mean_kpt_of_pred * pcd_mean) + pcd_centroid
-        real_kpt_of_pred = real_kpt_of_pred / 1000  #unit: mm to m
+        points = points.transpose(2, 1)
+        gripper_pos = gripper_pose[:, :3, 3]
+        kpt_pred = points - kpt_of_pred
+        mean_kpt_pred = torch.mean(kpt_pred, dim=1)
+        real_kpt_pred = (mean_kpt_pred * pcd_mean) + pcd_centroid
+        real_kpt_pred = real_kpt_pred / 1000  #unit: mm to m
         real_trans_of_pred = (trans_of_pred * pcd_mean) / 1000 #unit: mm to m
-        delta_trans_pred = real_kpt_of_pred - gripper_pos + real_trans_of_pred
+        delta_trans_pred = real_kpt_pred - gripper_pos + real_trans_of_pred
+
         '''
         # action control
         delta_rot_pred_6d = action_pred[:, 0:6]
@@ -305,13 +307,15 @@ def main(args):
                 unit_delta_xyz = unit_delta_xyz.cuda()
                 step_size = step_size.cuda()
                 '''
-            gripper_pos = gripper_pose[:, :3, 3]
             kpt_of_pred, trans_of_pred = network(points)
-            mean_kpt_of_pred = torch.mean(kpt_of_pred, dim=1)
-            real_kpt_of_pred = (mean_kpt_of_pred * pcd_mean) + pcd_centroid
-            real_kpt_of_pred = real_kpt_of_pred / 1000  #unit: mm to m
+            points = points.transpose(2, 1)
+            gripper_pos = gripper_pose[:, :3, 3]
+            kpt_pred = points - kpt_of_pred
+            mean_kpt_pred = torch.mean(kpt_pred, dim=1)
+            real_kpt_pred = (mean_kpt_pred * pcd_mean) + pcd_centroid
+            real_kpt_pred = real_kpt_pred / 1000  #unit: mm to m
             real_trans_of_pred = (trans_of_pred * pcd_mean) / 1000 #unit: mm to m
-            delta_trans_pred = real_kpt_of_pred - gripper_pos + real_trans_of_pred
+            delta_trans_pred = real_kpt_pred - gripper_pos + real_trans_of_pred
 
             '''
             heatmap_pred, action_pred, step_size_pred = network(points)
