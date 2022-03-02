@@ -71,9 +71,9 @@ class kpt_of_net(nn.Module):
         return kpt_of_pred
     
     
-class mask_net(nn.Module):
+class seg_net(nn.Module):
     def __init__(self):
-        super(mask_net, self).__init__()
+        super(seg_net, self).__init__()
         self.conv1 = nn.Conv1d(128, 128, 1)
         self.bn1 = nn.BatchNorm1d(128)
         self.drop1 = nn.Dropout(0.5)
@@ -83,15 +83,15 @@ class mask_net(nn.Module):
         point_features = point_features.permute(0,2,1)
         point_features = self.drop1(F.relu(self.bn1(self.conv1(point_features))))
         point_features = self.conv2(point_features)
-        mask = F.log_softmax(point_features, dim=1)
-        mask = point_features.permute(0, 2, 1)
+        seg = F.log_softmax(point_features, dim=1)
+        seg = point_features.permute(0, 2, 1)
 
-        return mask 
+        return seg
     
     
-class heatmap_net(nn.Module):
+class mask_net(nn.Module):
     def __init__(self):
-        super(heatmap_net, self).__init__()
+        super(mask_net, self).__init__()
         self.fc1 = nn.Linear(128, 64)
         self.fc2 = nn.Linear(64, 64)
         self.fc3 = nn.Linear(64, 1)
@@ -110,10 +110,10 @@ class heatmap_net(nn.Module):
         self.sigmoid = nn.Sigmoid()
         '''
         
-    def forward(self, global_features, point_features):
+    def forward(self, point_features):
         b1 = F.leaky_relu(self.fc1(point_features) , negative_slope = 0.2)
         b2 = F.leaky_relu(self.fc2(b1) , negative_slope = 0.2)
-        heatmap = self.sigmoid(self.fc3(b2))
+        confidence = self.sigmoid(self.fc3(b2))
 
         ###this version concatenate global features and point features
         ''' 
@@ -127,7 +127,7 @@ class heatmap_net(nn.Module):
         b3 = F.leaky_relu(self.fc3(b2) , negative_slope = 0.2)
         heatmap = self.sigmoid(self.fc3_2(b3))
         '''
-        return heatmap
+        return confidence
     
     
 class action_net(nn.Module):
@@ -143,11 +143,7 @@ class action_net(nn.Module):
         self.bn3 = nn.BatchNorm1d(32)
         self.fc4 = nn.Linear(32, 3)
 
-    def forward(self, global_features, kpt_of_pred, xyz):
-        xyz = xyz.permute(0, 2, 1)
-        kpt_pred = xyz - kpt_of_pred
-        mean_kpt_pred = torch.mean(kpt_pred, dim=1)
-        
+    def forward(self, global_features, kpt_of_pred, mean_kpt_pred):
         global_features = self.drop1(F.relu(self.bn1(self.fc1(global_features))))
         global_features = self.drop2(F.relu(self.bn2(self.fc2(global_features))))
         all_feature = torch.cat((global_features, mean_kpt_pred) , dim = -1)
@@ -162,6 +158,7 @@ class get_model(nn.Module):
         super(get_model, self).__init__()
         self.backbone = pointnet2_backbone()
         self.kpt_of_net = kpt_of_net()
+        self.mask_net = mask_net()
         self.actionnet = action_net()
         #self.masknet = mask_net()
         #self.heatmapnet = heatmap_net()
@@ -171,15 +168,23 @@ class get_model(nn.Module):
     def forward(self, xyz):
         global_features, point_features = self.backbone(xyz)
         kpt_of_pred = self.kpt_of_net(point_features)
-        trans_of_pred = self.actionnet(global_features, kpt_of_pred, xyz)
+        confidence = self.mask_net(point_features)
+        # compute kpt
+        xyz = xyz.permute(0, 2, 1)
+        kpt_pred = xyz - kpt_of_pred  # (B, N, 3)
+        mean_kpt_pred = torch.sum(kpt_pred * confidence, dim=1) / torch.sum(confidence, dim=1)
+        #mean_kpt_pred = torch.mean(kpt_pred, dim=1)
+        trans_of_pred = self.actionnet(global_features, kpt_of_pred, mean_kpt_pred)
         
-        return kpt_of_pred, trans_of_pred
+        return kpt_of_pred, trans_of_pred, mean_kpt_pred, confidence
 
     
 if __name__ == '__main__':
     model = get_model()
     xyz = torch.rand(6, 3, 1024) # (B, 3, N)
-    kpt_of_pred, trans_of_pred = model(xyz)
+    kpt_of_pred, trans_of_pred, mean_kpt_pred, confidence = model(xyz)
     print(kpt_of_pred.size()) # (B, N, 3)
     print(trans_of_pred.size()) # (B, 3)
+    print(mean_kpt_pred.size()) # (B, 3)
+    print(confidence.size()) # (B, N, 1)
     
