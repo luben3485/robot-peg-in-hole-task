@@ -1,0 +1,4 @@
+logs_proto/2022-02-25/coarse_insertion_square_2022-02-25
+logs_proto/2022-02-25/coarse_insertion_small_square_2022-02-25
+logs_proto/2022-02-25/coarse_insertion_circle_2022-02-25
+

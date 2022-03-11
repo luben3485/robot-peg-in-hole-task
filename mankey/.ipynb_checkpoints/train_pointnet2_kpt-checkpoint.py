@@ -5,7 +5,7 @@ Date: Nov 2019
 
 import os
 '''HYPER PARAMETER'''
-os.environ["CUDA_VISIBLE_DEVICES"] = '7'
+os.environ["CUDA_VISIBLE_DEVICES"] = '4'
 import sys
 import torch
 from torch.utils.data import DataLoader
@@ -58,9 +58,9 @@ def construct_dataset(is_train: bool) -> (torch.utils.data.Dataset, SupervisedKe
     db_config.keypoint_yaml_name = 'peg_in_hole.yaml'
     db_config.pdc_data_root = '/tmp2/r09944001/data/pdc'
     if is_train:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220107.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220112_fine.txt'
     else:
-        db_config.config_file_path = '/tmp2/r90944001/robot-peg-in-hole-task/mankey/config/insertion_20220107.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220112_fine.txt'
     database = SpartanSupervisedKeypointDatabase(db_config)
 
     # Construct torch dataset
@@ -89,6 +89,7 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
     '''
     kptof_error = []
     xyz_error = []
+    mask_error = []
     network = model.eval()
 
     for j, data in tqdm(enumerate(loader), total=len(loader)):
@@ -102,7 +103,7 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
         gripper_pose = data[parameter.gripper_pose_key]
         delta_xyz = data[parameter.delta_xyz_key]
         #delta_rot = data[parameter.delta_rot_key]
-        #heatmap_target = data[parameter.heatmap_key]
+        heatmap_target = data[parameter.heatmap_key]
         #segmentation_target = data[parameter.segmentation_key]
         #unit_delta_xyz = data[parameter.unit_delta_xyz_key]
         #step_size = data[parameter.step_size_key]
@@ -113,6 +114,8 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
             pcd_centroid = pcd_centroid.cuda()
             pcd_mean = pcd_mean.cuda()
             gripper_pose = gripper_pose.cuda()
+            #segmentation_target = segmentation_target.cuda()
+            heatmap_target = heatmap_target.cuda()
             '''
             delta_rot = delta_rot.cuda()
             delta_xyz = delta_xyz.cuda()
@@ -120,11 +123,11 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
             step_size = step_size.cuda()
             heatmap_target = heatmap_target.cuda()
             '''
-        kpt_of_pred, trans_of_pred = network(points)
-        points = points.transpose(2, 1)
+        kpt_of_pred, trans_of_pred, mean_kpt_pred, confidence = network(points)
         gripper_pos = gripper_pose[:, :3, 3]
-        kpt_pred = points - kpt_of_pred
-        mean_kpt_pred = torch.mean(kpt_pred, dim=1)
+        #points = points.transpose(2, 1)
+        #kpt_pred = points - kpt_of_pred
+        #mean_kpt_pred = torch.mean(kpt_pred, dim=1)
         real_kpt_pred = (mean_kpt_pred * pcd_mean) + pcd_centroid
         real_kpt_pred = real_kpt_pred / 1000  #unit: mm to m
         real_trans_of_pred = (trans_of_pred * pcd_mean) / 1000 #unit: mm to m
@@ -139,6 +142,8 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
         # loss computation
         loss_kptof = criterion_kptof(kpt_of_pred, kpt_of_gt).sum()
         loss_t = (1-criterion_cos(delta_trans_pred, delta_xyz)).mean() + criterion_rmse(delta_trans_pred, delta_xyz)
+        loss_mask = criterion_rmse(confidence, heatmap_target)
+           
         '''
         loss_heatmap = criterion_rmse(heatmap_pred, heatmap_target)
         loss_r = criterion_rmse(delta_rot_pred, delta_rot)
@@ -148,6 +153,7 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
         '''
         kptof_error.append(loss_kptof.item())
         xyz_error.append(loss_t.item())
+        mask_error.append(loss_mask.item())
         '''
         rot_error.append(loss_r.item())
         xyz_error.append(loss_t.item())
@@ -156,6 +162,7 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
         '''
     kptof_error = sum(kptof_error) / len(kptof_error)
     xyz_error = sum(xyz_error) / len(xyz_error)
+    mask_error = sum(mask_error) / len(mask_error)
     '''
     rot_error = sum(rot_error) / len(rot_error)
     xyz_error = sum(xyz_error) / len(xyz_error)
@@ -163,7 +170,7 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
     step_size_error = sum(step_size_error) / len(step_size_error)
     '''
     #return rot_error, xyz_error, heatmap_error, step_size_error
-    return kptof_error, xyz_error
+    return kptof_error, xyz_error, mask_error
 
 def main(args):
     def log_string(str):
@@ -259,6 +266,7 @@ def main(args):
     best_heatmap_error = 99.9
     best_step_size_error = 99.9
     best_kptof_error = 99.9
+    best_mask_error = 99.9
 
     '''TRANING'''
     logger.info('Start training...')
@@ -269,6 +277,7 @@ def main(args):
         train_heatmap_error = []
         train_step_size_error = []
         train_kptof_error = []
+        train_mask_error = []
         network = network.train()
 
         scheduler.step()
@@ -282,7 +291,7 @@ def main(args):
             #points[:, :, 0:3] = provider.shift_point_cloud(points[:, :, 0:3])
             points = torch.Tensor(points)
             points = points.transpose(2, 1)
-            #heatmap_target = data[parameter.heatmap_key]
+            heatmap_target = data[parameter.heatmap_key]
             #segmentation_target = data[parameter.segmentation_key]
             #delta_rot = data[parameter.delta_rot_key]
             delta_xyz = data[parameter.delta_xyz_key]
@@ -300,6 +309,8 @@ def main(args):
                 pcd_centroid = pcd_centroid.cuda()
                 pcd_mean = pcd_mean.cuda()
                 gripper_pose = gripper_pose.cuda()
+                #segmentation_target = segmentation_target.cuda()
+                heatmap_target = heatmap_target.cuda()
                 '''
                 delta_rot = delta_rot.cuda()
                 delta_xyz = delta_xyz.cuda()
@@ -307,11 +318,11 @@ def main(args):
                 unit_delta_xyz = unit_delta_xyz.cuda()
                 step_size = step_size.cuda()
                 '''
-            kpt_of_pred, trans_of_pred = network(points)
-            points = points.transpose(2, 1)
+            kpt_of_pred, trans_of_pred, mean_kpt_pred, confidence = network(points)
             gripper_pos = gripper_pose[:, :3, 3]
-            kpt_pred = points - kpt_of_pred
-            mean_kpt_pred = torch.mean(kpt_pred, dim=1)
+            #points = points.transpose(2, 1)
+            #kpt_pred = points - kpt_of_pred
+            #mean_kpt_pred = torch.mean(kpt_pred, dim=1)
             real_kpt_pred = (mean_kpt_pred * pcd_mean) + pcd_centroid
             real_kpt_pred = real_kpt_pred / 1000  #unit: mm to m
             real_trans_of_pred = (trans_of_pred * pcd_mean) / 1000 #unit: mm to m
@@ -335,7 +346,8 @@ def main(args):
             '''
             loss_kptof = criterion_kptof(kpt_of_pred, kpt_of_gt).sum()
             loss_t = (1-criterion_cos(delta_trans_pred, delta_xyz)).mean() + criterion_rmse(delta_trans_pred, delta_xyz)
-            loss = loss_kptof + loss_t
+            loss_mask = criterion_rmse(confidence, heatmap_target)
+            loss = loss_kptof + loss_t + loss_mask
             loss.backward()
             optimizer.step()
             global_step += 1
@@ -348,6 +360,7 @@ def main(args):
             '''
             train_kptof_error.append(loss_kptof.item())
             train_xyz_error.append(loss_t.item())
+            train_mask_error.append(loss_mask.item())
             
         '''
         train_rot_error = sum(train_rot_error) / len(train_rot_error)
@@ -357,6 +370,7 @@ def main(args):
         '''
         train_kptof_error = sum(train_kptof_error) / len(train_kptof_error)
         train_xyz_error = sum(train_xyz_error) / len(train_xyz_error)
+        train_mask_error = sum(train_mask_error) / len(train_mask_error)
         '''
         log_string('Train Rotation Error: %f' % train_rot_error)
         log_string('Train Translation Error: %f' % train_xyz_error)
@@ -365,14 +379,15 @@ def main(args):
         '''
         log_string('Train Keypoint Offset Error: %f' % train_kptof_error)
         log_string('Train Translation Error: %f' % train_xyz_error)
+        log_string('Train Mask Error: %f' % train_mask_error)
         with torch.no_grad():
             #rot_error, xyz_error, heatmap_error, step_size_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce)
-            kptof_error, xyz_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof)
+            kptof_error, xyz_error, mask_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof)
             
             #log_string('Test Rotation Error: %f, Translation Error: %f, Heatmap Error: %f, Step size Error: %f' % (rot_error, xyz_error, heatmap_error, step_size_error))
             #log_string('Best Rotation Error: %f, Translation Error: %f, Heatmap Error: %f, Step size Error: %f' % (best_rot_error, best_xyz_error, best_heatmap_error, best_step_size_error))
-            log_string('Test Keypoint offset Error: %f, Translation Error: %f' % (kptof_error, xyz_error))
-            log_string('Best Keypoint offset Error: %f, Translation Error: %f' % (best_kptof_error, best_xyz_error))
+            log_string('Test Keypoint offset Error: %f, Translation Error: %f, Mask Error: %f' % (kptof_error, xyz_error, mask_error))
+            log_string('Best Keypoint offset Error: %f, Translation Error: %f, Mask Error: %f' % (best_kptof_error, best_xyz_error, best_mask_error))
             '''
             if (rot_error + xyz_error + heatmap_error + step_size_error) < (best_rot_error + best_xyz_error + best_heatmap_error + best_step_size_error):
                 best_rot_error = rot_error
@@ -395,9 +410,10 @@ def main(args):
                 torch.save(state, savepath)
             global_epoch += 1
             '''
-            if (kptof_error + xyz_error) < (best_kptof_error + best_xyz_error):
+            if (kptof_error + xyz_error + mask_error) < (best_kptof_error + best_xyz_error + best_mask_error):
                 best_kptof_error = kptof_error
                 best_xyz_error = xyz_error
+                best_mask_error = mask_error
                 best_epoch = epoch + 1
                 logger.info('Save model...')
                 savepath = str(checkpoints_dir) + '/best_model.pth'
@@ -406,6 +422,7 @@ def main(args):
                     'epoch': best_epoch,
                     'kptof_error': kptof_error,
                     'xyz_error': xyz_error,
+                    'mask_error': mask_error,
                     'model_state_dict': network.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                 }

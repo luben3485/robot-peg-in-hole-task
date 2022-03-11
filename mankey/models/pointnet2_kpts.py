@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from models.pointnet2_utils import PointNetSetAbstractionMsg, PointNetFeaturePropagation, PointNetSetAbstraction
+from models.utils import compute_rotation_matrix_from_ortho6d
 
 
 class pointnet2_backbone(nn.Module):
@@ -59,7 +60,7 @@ class kpt_of_net(nn.Module):
         self.bn1 = nn.BatchNorm1d(64)
         self.conv2 = nn.Conv1d(64, 32, 1)
         self.bn2 = nn.BatchNorm1d(32)
-        self.conv3 = nn.Conv1d(32, 3, 1)
+        self.conv3 = nn.Conv1d(32, 9, 1)
     
     def forward(self, point_features):
         point_features = point_features.permute(0,2,1)
@@ -139,23 +140,31 @@ class action_net(nn.Module):
         self.fc2 = nn.Linear(256, 64)
         self.bn2 = nn.BatchNorm1d(64)
         self.drop2 = nn.Dropout(0.4)
-        self.fc3 = nn.Linear(64+3, 32)
-        self.bn3 = nn.BatchNorm1d(32)
-        self.fc4 = nn.Linear(32, 3)
+        self.fc3_1 = nn.Linear(64+3, 32)
+        self.bn3_1 = nn.BatchNorm1d(32)
+        self.fc4_1 = nn.Linear(32, 3)
+        self.fc3_2 = nn.Linear(64+9, 32)
+        self.bn3_2 = nn.BatchNorm1d(32)
+        self.fc4_2 = nn.Linear(32, 6)
 
-    def forward(self, global_features, kpt_of_pred, mean_kpt_pred):
+    def forward(self, global_features, mean_kpt_pred, rot_mat_pred):
         global_features = self.drop1(F.relu(self.bn1(self.fc1(global_features))))
         global_features = self.drop2(F.relu(self.bn2(self.fc2(global_features))))
-        all_feature = torch.cat((global_features, mean_kpt_pred) , dim = -1)
-        all_feature = F.relu(self.bn3(self.fc3(all_feature)))
-        trans_of_pred = self.fc4(all_feature)
+        trans_feature = torch.cat((global_features, mean_kpt_pred) , dim = -1)
+        trans_feature = F.relu(self.bn3_1(self.fc3_1(trans_feature)))
+        trans_of_pred = self.fc4_1(trans_feature)
+        rot_mat_pred = torch.flatten(rot_mat_pred, start_dim=1)
+        rot_feature = torch.cat((global_features, rot_mat_pred) , dim = -1)
+        rot_feature = F.relu(self.bn3_2(self.fc3_2(rot_feature)))
+        rot_of_6d_pred = self.fc4_2(rot_feature)
         
-        return trans_of_pred
+        return trans_of_pred, rot_of_6d_pred
         
         
 class get_model(nn.Module):
-    def __init__(self):
+    def __init__(self,):
         super(get_model, self).__init__()
+        self.use_cpu = False
         self.backbone = pointnet2_backbone()
         self.kpt_of_net = kpt_of_net()
         self.mask_net = mask_net()
@@ -171,20 +180,35 @@ class get_model(nn.Module):
         confidence = self.mask_net(point_features)
         # compute kpt
         xyz = xyz.permute(0, 2, 1)
-        kpt_pred = xyz - kpt_of_pred  # (B, N, 3)
+        kpt_pred = xyz - kpt_of_pred[:, :, :3]  # (B, N, 3)
+        kpt_x_pred = xyz - kpt_of_pred[:, :, 3:6]  # (B, N, 3)
+        kpt_y_pred = xyz - kpt_of_pred[:, :, 6:]  # (B, N, 3)
         mean_kpt_pred = torch.sum(kpt_pred * confidence, dim=1) / torch.sum(confidence, dim=1)
+        mean_kpt_x_pred = torch.sum(kpt_x_pred * confidence, dim=1) / torch.sum(confidence, dim=1)
+        mean_kpt_y_pred = torch.sum(kpt_y_pred * confidence, dim=1) / torch.sum(confidence, dim=1)
         #mean_kpt_pred = torch.mean(kpt_pred, dim=1)
-        trans_of_pred = self.actionnet(global_features, kpt_of_pred, mean_kpt_pred)
+        vec_x_pred = mean_kpt_pred - mean_kpt_x_pred
+        vec_y_pred = mean_kpt_pred - mean_kpt_y_pred
+        ortho6d = torch.cat((vec_x_pred, vec_y_pred), axis=1)
+        rot_mat_pred = compute_rotation_matrix_from_ortho6d(ortho6d, use_cpu=self.use_cpu)
+        trans_of_pred, rot_of_6d_pred = self.actionnet(global_features, mean_kpt_pred, rot_mat_pred)
+        rot_of_pred = compute_rotation_matrix_from_ortho6d(rot_of_6d_pred, use_cpu=self.use_cpu)
         
-        return kpt_of_pred, trans_of_pred, mean_kpt_pred, confidence
+        return kpt_of_pred, trans_of_pred, rot_of_pred, mean_kpt_pred, rot_mat_pred, confidence
 
     
 if __name__ == '__main__':
-    model = get_model()
+    import os
+    '''HYPER PARAMETER'''
+    os.environ["CUDA_VISIBLE_DEVICES"] = '3'
+    model = get_model().cuda()
     xyz = torch.rand(6, 3, 1024) # (B, 3, N)
-    kpt_of_pred, trans_of_pred, mean_kpt_pred, confidence = model(xyz)
+    xyz = xyz.cuda()
+    kpt_of_pred, trans_of_pred, rot_of_pred, mean_kpt_pred, rot_mat_pred, confidence = model(xyz)
     print(kpt_of_pred.size()) # (B, N, 3)
     print(trans_of_pred.size()) # (B, 3)
+    print(rot_of_pred.size()) # (B, 3, 3)
     print(mean_kpt_pred.size()) # (B, 3)
+    print(rot_mat_pred.size()) # (B, 3, 3)
     print(confidence.size()) # (B, N, 1)
     

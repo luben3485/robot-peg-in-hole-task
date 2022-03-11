@@ -38,7 +38,7 @@ def depth_2_pcd(depth, factor, K):
 def parse_args():
     '''PARAMETERS'''
     parser = argparse.ArgumentParser()
-    parser.add_argument('--folder_path', type=str, default='2022-02-26-test/coarse_insertion_rectangle_2022-02-26-test', help='folder path')
+    parser.add_argument('--folder_path', type=str, default='2022-02-26-test/coarse_insertion_square_2022-02-26-test', help='folder path')
 
     return parser.parse_args()
 
@@ -48,14 +48,14 @@ def main(args):
     data_root = os.path.join('/tmp2/r09944001/data/pdc/logs_proto', args.folder_path, 'processed')
     image_folder_path = os.path.join(data_root, 'images')
     pcd_folder_path = os.path.join(data_root, 'pcd')
-    pcd_seg_heatmap_kpt_folder_path = os.path.join(data_root, 'pcd_seg_sheatmap_kpt')
+    pcd_seg_heatmap_kpt_folder_path = os.path.join(data_root, 'pcd_seg_heatmap_3kpt')
     # create folder
     cwd = os.getcwd()
     os.chdir(data_root)
     if not os.path.exists('pcd'):
         os.makedirs('pcd')
-    if not os.path.exists('pcd_seg_sheatmap_kpt'):
-        os.makedirs('pcd_seg_sheatmap_kpt')
+    if not os.path.exists('pcd_seg_heatmap_3kpt'):
+        os.makedirs('pcd_seg_heatmap_3kpt')
     os.chdir(cwd)
 
 
@@ -95,7 +95,7 @@ def main(args):
         concat_xyz_in_world = np.array(xyz_in_world_list)
         concat_xyz_in_world = concat_xyz_in_world.reshape(-1,3)
 
-        # convert first hole's keypoint from camera to world coordinate
+
         hole_keypoint_top_pose_in_world = np.array(data[key]['hole_keypoint_obj_top_pose_in_world'])
         hole_keypoint_top_pos_in_world = hole_keypoint_top_pose_in_world[:3, 3]
         hole_keypoint_bottom_pose_in_world = np.array(data[key]['hole_keypoint_obj_bottom_pose_in_world'])
@@ -141,13 +141,18 @@ def main(args):
             x_scalar = np.dot(vec, x_normal_vector) / np.linalg.norm(x_normal_vector)
             y_scalar = np.dot(vec, y_normal_vector) / np.linalg.norm(y_normal_vector)
             z_scalar = np.dot(vec, z_normal_vector) / np.linalg.norm(z_normal_vector)
-            sigma = 0.025 # 0.05
+            sigma = 0.05 # smaller 0.025
             heatmap_value = math.exp(-(y_scalar ** 2 + z_scalar ** 2 + x_scalar ** 2) / (2.0 * sigma ** 2))  # / (2 * math.pi * sigma**3 * math.sqrt(2*math.pi))
             heatmap_label.append(heatmap_value)
         for idx, seg in enumerate(seg_label):
             if seg_label[idx] == 0:
                 heatmap_label[idx] = 0
 
+        # determine x-axis & y-axis keypoint
+        hole_x_vec = hole_keypoint_top_pose_in_world[:3, 0]
+        hole_y_vec = hole_keypoint_top_pose_in_world[:3, 1]
+        hole_keypoint_top_x_pos_in_world = hole_keypoint_top_pos_in_world - hole_x_vec * 0.025
+        hole_keypoint_top_y_pos_in_world = hole_keypoint_top_pos_in_world - hole_y_vec * 0.025
         # determine keypoint offset
         # normalize pcd data(unit:mm)
         concat_xyz_in_world = np.array(concat_xyz_in_world)
@@ -158,9 +163,13 @@ def main(args):
         normal_xyz_in_world = normal_xyz_in_world / m
             
         # normalize hole's top keypoint 
-        normal_hole_keypoint_top_pos_in_world = (hole_keypoint_top_pos_in_world*1000 - centroid) / m
+        normal_hole_keypoint_top_pos_in_world = (hole_keypoint_top_pos_in_world * 1000 - centroid) / m
+        normal_hole_keypoint_top_x_pos_in_world = (hole_keypoint_top_x_pos_in_world * 1000 - centroid) / m
+        normal_hole_keypoint_top_y_pos_in_world = (hole_keypoint_top_y_pos_in_world * 1000 - centroid) / m
         # keypoint offset
         kpt_of_gt = normal_xyz_in_world - normal_hole_keypoint_top_pos_in_world
+        kpt_of_x_gt = normal_xyz_in_world - normal_hole_keypoint_top_x_pos_in_world
+        kpt_of_y_gt = normal_xyz_in_world - normal_hole_keypoint_top_y_pos_in_world
         
         '''
         # hole pcd visualize(make sure that the scale of pcd is in mm)
@@ -175,13 +184,24 @@ def main(args):
         xyz_seg = np.concatenate((normal_xyz_in_world, seg_label), axis=1).astype(np.float32)  # n x 4
         xyz_seg_heatmap = np.concatenate((xyz_seg, heatmap_label), axis=1).astype(np.float32)  # n x 5
         xyz_seg_heatmap_kptof = np.concatenate((xyz_seg_heatmap, kpt_of_gt), axis=1).astype(np.float32)  # n x 8
+        xyz_seg_heatmap_kptof = np.concatenate((xyz_seg_heatmap_kptof, kpt_of_x_gt), axis=1).astype(np.float32)  # n x 11
+        xyz_seg_heatmap_kptof = np.concatenate((xyz_seg_heatmap_kptof, kpt_of_y_gt), axis=1).astype(np.float32)  # n x 14
         np.save(os.path.join(pcd_seg_heatmap_kpt_folder_path, pcd_filename), xyz_seg_heatmap_kptof)
         data[key]['pcd'] = pcd_filename
         # save mean and centroid of pcd
         data[key]['pcd_mean'] = m.item()
         data[key]['pcd_centroid'] = centroid.tolist()
         
-        if key == 2:
+        if key == 0:
+            kpts = np.array([hole_keypoint_top_pos_in_world*1000,hole_keypoint_top_x_pos_in_world*1000, hole_keypoint_top_y_pos_in_world*1000])
+            concat_pcd = o3d.geometry.PointCloud()
+            concat_pcd.points = o3d.utility.Vector3dVector(np.concatenate((concat_xyz_in_world, kpts), axis=0))
+            kpt_color = np.array([[1,0,0],[1,1,0],[0,1,0]])
+            point_color = np.repeat([[0.9,0.9,0.9]], concat_xyz_in_world.shape[0], axis=0)
+            color = np.concatenate((point_color, kpt_color), axis=0)
+            concat_pcd.colors = o3d.utility.Vector3dVector(color)
+            o3d.io.write_point_cloud(os.path.join(data_root, 'concat_xyzkpt_' + str(key) + '.ply'), concat_pcd)
+
             concat_pcd = o3d.geometry.PointCloud()
             concat_pcd.points = o3d.utility.Vector3dVector(concat_xyz_in_world)
             seg_color = np.array(seg_color).reshape(-1, 3)  # n x 3

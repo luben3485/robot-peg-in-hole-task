@@ -241,7 +241,7 @@ class SupervisedKeypointDataset(data.Dataset):
         processed_entry.pcd = pcd_raw[:, :3].reshape(-1,3)
         processed_entry.heatmap = pcd_raw[:, 4].reshape(-1,1)
         processed_entry.segmentation = pcd_raw[:, 3].reshape(-1,1)
-        processed_entry.kpt_of = pcd_raw[:, 5:].reshape(-1,3)
+        processed_entry.kpt_of = pcd_raw[:, 5:].reshape(-1,9)
         processed_entry.pcd_centroid = entry.pcd_centroid.reshape(3,)
         processed_entry.pcd_mean = entry.pcd_mean.reshape(1,)
                               
