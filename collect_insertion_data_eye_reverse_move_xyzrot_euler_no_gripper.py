@@ -327,7 +327,7 @@ def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
 def main():
     rob_arm = SingleRoboticArm()
     data_root = '/home/luben/data/pdc/logs_proto'
-    date = '2022-01-16'
+    date = '2022-02-15'
     anno_data = 'insertion_xyzrot_eye_' + date + '/processed'
     im_data = 'insertion_xyzrot_eye_' + date + '/processed/images'
     anno_data_path = os.path.join(data_root, anno_data)
@@ -428,7 +428,8 @@ def main():
             robot_pose[:3, :3] = rot_matrix
 
             hole_keypoint_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
-            robot_pose[:3,3] = hole_keypoint_top_pose[:3,3] + hole_keypoint_top_pose[:3,0] * 0.03
+            random_pull_up_dis = random.uniform(0.03, 0.05)
+            robot_pose[:3,3] = hole_keypoint_top_pose[:3,3] + hole_keypoint_top_pose[:3,0] * random_pull_up_dis
             rob_arm.movement(robot_pose)
             ''''
             #gripper offset

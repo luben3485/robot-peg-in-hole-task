@@ -352,7 +352,7 @@ def getFootPoint(point, line_p1, line_p2):
 def main():
     rob_arm = SingleRoboticArm()
     data_root = '/home/luben/data/pdc/logs_proto'
-    date = '2022-01-16'
+    date = '2022-02-11_testing'
     anno_data = 'insertion_xyzrot_eye_close_' + date + '/processed'
     im_data = 'insertion_xyzrot_eye_close_' + date + '/processed/images'
     anno_data_path = os.path.join(data_root, anno_data)
@@ -367,7 +367,7 @@ def main():
 
     info_dic = {}
     cnt = 0
-    iter = 20000
+    iter = 50
     #cam_name = 'vision_eye_1'
     cam_name_list = ['vision_eye_left', 'vision_eye_right']
     peg_top = 'peg_dummy_top'

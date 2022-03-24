@@ -148,3 +148,15 @@ class PointnetMover(object):
 
         return delta_rot_pred[0], delta_xyz_pred[0]
 
+    def test_network(self, points):
+        self.network = self.network.eval()
+        with torch.no_grad():
+            pred, _ = self.network(points)
+            return pred, _
+
+if __name__ == '__main__':
+    mover = PointnetMover(date='2022-01-18_00-53', model_name='pointnet2_reg_msg',
+                               checkpoint_name='best_model.pth', use_cpu=False, out_channel=9)
+    inputs = torch.rand(1, 3, 16000).cuda()
+    action, _ = mover.test_network(inputs)
+    print(action.size())

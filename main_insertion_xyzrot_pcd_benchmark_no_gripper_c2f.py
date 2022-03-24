@@ -5,9 +5,11 @@ import math
 from transforms3d.quaternions import mat2quat, quat2axangle, quat2mat, qmult
 import random
 from scipy.spatial.transform import Rotation as R
+#from inference_pointnet2_reg_seg_heatmap import CoarseMover, FineMover
 from inference_pointnet2_reg import PointnetMover
 import os
 import sys
+import torch
 sys.path.append('/home/luben/robot-peg-in-hole-task')
 
 def quaternion_matrix(quaternion):
@@ -95,6 +97,7 @@ def get_init_pos(hole_pos, peg_pos):
     y = -0.5
     hole_pos[0] = x
     hole_pos[1] = y
+
     peg_pos[0] = x
     peg_pos[1] = y
     #peg_pos[2] = 7.1168e-02
@@ -149,100 +152,160 @@ def predict_xyzrot_from_multiple_camera(cam_name_list, mover, rob_arm):
 
 def main():
     # create folder
-    benchmark_folder = 'pcd_benchmark'
+    #benchmark_folder = 'pcd_benchmark/reg_seg_heatmap_v3'
+    benchmark_folder = 'pcd_benchmark/reg'
     if not os.path.exists(benchmark_folder):
         os.makedirs(benchmark_folder)
-    f = open(os.path.join(benchmark_folder, "enchmark_0103_0103_reg_vision_eye_concat_c.txt"), "w")
+    #f = open(os.path.join(benchmark_folder, "benchmark_0103_0103_reg_vision_eye_concat_c2f_closeloop_small_square.txt"), "w")
+    f = open(os.path.join(benchmark_folder, "hole_score.txt"), "w")
 
-    rob_arm = SingleRoboticArm()
-    init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-    net_date_coarse = '2022-01-03_14-47'
-    net_date_fine = '2022-01-03_14-44'
-    coarse_mover = PointnetMover(date=net_date_coarse, model_name='pointnet2_reg_msg', checkpoint_name='best_model_e_115.pth', use_cpu=False, out_channel=9)
-    fine_mover = PointnetMover(date=net_date_fine, model_name='pointnet2_reg_msg', checkpoint_name='best_model_e_115.pth', use_cpu=False, out_channel=9)
-
+    coarse_mover = PointnetMover(date='2022-03-06_00-36', model_name='pointnet2_reg_msg', checkpoint_name='best_model_e_115.pth',use_cpu=False, out_channel=9)
+    fine_mover = PointnetMover(date='2022-03-06_02-12', model_name='pointnet2_reg_msg', checkpoint_name='best_model_e_75.pth',use_cpu=False, out_channel=9)
     iter_num = 500
     cam_name_list = ['vision_eye_left', 'vision_eye_right']
     peg_top = 'peg_dummy_top'
     peg_bottom = 'peg_dummy_bottom'
-    hole_top = 'hole_keypoint_top'
-    hole_bottom = 'hole_keypoint_bottom'
     peg_name = 'peg_in_arm'
-    hole_name = 'hole'
+    hole_setting = {'square':['square', 'hole_keypoint_top0', 'hole_keypoint_bottom0'],
+                    'small_square':['small_square', 'hole_keypoint_top1', 'hole_keypoint_bottom1'],
+                    'circle':['circle', 'hole_keypoint_top2', 'hole_keypoint_bottom2'],
+                    'rectangle':['rectangle', 'hole_keypoint_top3', 'hole_keypoint_bottom3'],
+                    'triangle':['triangle', 'hole_keypoint_top4', 'hole_keypoint_bottom4']}
+    #selected_hole_list = ['square', 'small_square', 'circle', 'rectangle', 'triangle']
+    #selected_hole_list = ['square', 'circle', 'rectangle']
+    selected_hole_list = ['small_square', 'triangle']
+    for selected_hole in selected_hole_list:
+        rob_arm = SingleRoboticArm()
+        hole_name = hole_setting[selected_hole][0]
+        hole_top = hole_setting[selected_hole][1]
+        hole_bottom = hole_setting[selected_hole][2]
 
-    gripper_init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-    origin_hole_pose = rob_arm.get_object_matrix(hole_name)
-    origin_hole_pos = origin_hole_pose[:3, 3]
-    origin_hole_quat = rob_arm.get_object_quat(hole_name)
+        gripper_init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
+        origin_hole_pose = rob_arm.get_object_matrix(hole_name)
+        origin_hole_pos = origin_hole_pose[:3, 3]
+        origin_hole_quat = rob_arm.get_object_quat(hole_name)
 
-    insertion_succ_list = []
-    for iter in range(iter_num):
-        print('=' * 8 + str(iter) + '=' * 8)
-        rob_arm.movement(gripper_init_pose)
-        # set init pos of peg nad hole
-        rob_arm.set_object_position(hole_name, np.array([0.2, -0.5, 3.6200e-02]))
-        rob_arm.set_object_quat(hole_name, origin_hole_quat)
-        _, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 60)
+        insertion_succ_list = []
+        for iter in range(iter_num):
+            print('=' * 8 + str(iter) + '=' * 8)
+            rob_arm.movement(gripper_init_pose)
+            # set init pos of peg nad hole
+            rob_arm.set_object_position(hole_name, np.array([0.2, -0.5, 0.035]))
+            rob_arm.set_object_quat(hole_name, origin_hole_quat)
+            _, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 60)
 
-        # start pose
-        delta_move = np.array([random.uniform(-0.03, 0.03), random.uniform(-0.03, 0.03), random.uniform(0.10, 0.12)])
-        start_pose = rob_arm.get_object_matrix('UR5_ikTip')
-        hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
-        start_pos = hole_top_pose[:3, 3]
-        start_pos += delta_move
-        start_pose[:3, 3] = start_pos
-        rob_arm.movement(start_pose)
+            # start pose
+            delta_move = np.array([random.uniform(-0.03, 0.03), random.uniform(-0.03, 0.03), random.uniform(0.10, 0.12)])
+            start_pose = rob_arm.get_object_matrix('UR5_ikTip')
+            hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
+            start_pos = hole_top_pose[:3, 3]
+            start_pos += delta_move
+            start_pose[:3, 3] = start_pos
+            rob_arm.movement(start_pose)
 
-        # coarse approach
-        delta_rot_pred, delta_xyz_pred = predict_xyzrot_from_multiple_camera(cam_name_list, coarse_mover, rob_arm)
-        r = R.from_matrix(delta_rot_pred)
-        r_euler = r.as_euler('zyx', degrees=True)
-        if abs(r_euler[0]) < 90 and abs(r_euler[1]) < 90 and abs(r_euler[2]) < 90:
-            gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
-            rot_matrix = np.dot(gripper_pose[:3, :3], delta_rot_pred[:3, :3])
-            gripper_pose[:3, :3] = rot_matrix
-            gripper_pose[:3, 3] += delta_xyz_pred
-            rob_arm.movement(gripper_pose)
-        else:
-            continue
-        '''
-        # fine approach
-        for i in range(1):
-            ### start
-            delta_rot_pred, delta_xyz_pred = predict_xyzrot_from_multiple_camera(cam_name_list, fine_mover, rob_arm)
-            gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
-            rot_matrix = np.dot(gripper_pose[:3, :3], delta_rot_pred[:3, :3])
-            gripper_pose[:3, :3] = rot_matrix
-            gripper_pose[:3, 3] += delta_xyz_pred
-            rob_arm.movement(gripper_pose)
-        '''
+            tmp_pose = rob_arm.get_object_matrix('UR5_ikTip')
+            from mankey.models.utils import compute_rotation_matrix_from_ortho6d
+            a = torch.tensor([[1.0,0.0,0.0,1.0,1.0,0.0]])
+            m = compute_rotation_matrix_from_ortho6d(a, True)
+            tmp_pose[:3, :3] = m[0].cpu().numpy()
+            rob_arm.movement(tmp_pose)
+            print(m)
+            assert False
+            '''
+            # (test)move to hole top
+            for i in range(2):
+                hole_insert_dir = - rob_arm.get_object_matrix(hole_top)[:3, 0]  # x-axis
+                peg_insert_dir = - rob_arm.get_object_matrix(peg_top)[:3, 0]  # x-axis
+                dot_product = np.dot(peg_insert_dir, hole_insert_dir)
+                degree = math.degrees(
+                    math.acos(dot_product / (np.linalg.norm(peg_insert_dir) * np.linalg.norm(hole_insert_dir))))
+                print('degree between peg and hole : ', degree)
+                if degree > 0 and degree < 70:
+                    cross_product = np.cross(peg_insert_dir, hole_insert_dir)
+                    cross_product = cross_product / np.linalg.norm(cross_product)
+                    w = math.cos(math.radians(degree / 2))
+                    x = math.sin(math.radians(degree / 2)) * cross_product[0]
+                    y = math.sin(math.radians(degree / 2)) * cross_product[1]
+                    z = math.sin(math.radians(degree / 2)) * cross_product[2]
+                    quat = [w, x, y, z]
+                    rot_pose = quaternion_matrix(quat)
+                    robot_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
+                    rot_matrix = np.dot(rot_pose[:3, :3], robot_pose[:3, :3])
+                    robot_pose[:3, :3] = rot_matrix
+                    hole_keypoint_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
+                    robot_pose[:3, 3] = hole_keypoint_top_pose[:3, 3] + hole_keypoint_top_pose[:3, 0] * 0.03
+                    rob_arm.movement(robot_pose)
+            '''
 
-        # insertion
-        robot_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-        robot_pose[:3, 3] -= robot_pose[:3, 0] * 0.08  # x-axis
-        rob_arm.movement(robot_pose)
+            # coarse approach
+            delta_rot_pred, delta_xyz_pred = predict_xyzrot_from_multiple_camera(cam_name_list, coarse_mover, rob_arm)
+            r = R.from_matrix(delta_rot_pred)
+            r_euler = r.as_euler('zyx', degrees=True)
+            if abs(r_euler[0]) < 90 and abs(r_euler[1]) < 90 and abs(r_euler[2]) < 90:
+                gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
+                rot_matrix = np.dot(gripper_pose[:3, :3], delta_rot_pred[:3, :3])
+                gripper_pose[:3, :3] = rot_matrix
+                gripper_pose[:3, 3] += delta_xyz_pred
+                rob_arm.movement(gripper_pose)
+            else:
+                continue
 
-        # record insertion
-        peg_keypoint_bottom_pose = rob_arm.get_object_matrix(obj_name=peg_bottom)
-        hole_keypoint_bottom_pose = rob_arm.get_object_matrix(obj_name=hole_bottom)
-        dist = np.linalg.norm(peg_keypoint_bottom_pose[:3, 3] - hole_keypoint_bottom_pose[:3, 3])
-        print('dist', dist)
-        f.write(str(tilt_degree) + ' ' + str(dist) + '\n')
-        if dist < 0.010:
-            insertion_succ_list.append(1)
-        else:
-            insertion_succ_list.append(0)
 
-        # pull up
-        robot_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-        robot_pose[:3, 3] += robot_pose[:3, 0] * 0.1  # x-axis
-        rob_arm.movement(robot_pose)
+            # fine approach
+            # open-loop
+            '''
+            for i in range(1):
+                ### start
+                delta_rot_pred, delta_xyz_pred = predict_xyzrot_from_multiple_camera(cam_name_list, fine_mover, rob_arm)
+                gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
+                rot_matrix = np.dot(gripper_pose[:3, :3], delta_rot_pred[:3, :3])
+                gripper_pose[:3, :3] = rot_matrix
+                gripper_pose[:3, 3] += delta_xyz_pred
+                rob_arm.movement(gripper_pose)
+            '''
+            #closed-loop
+            cnt = 0
+            while True:
+                ### start
+                delta_rot_pred, delta_xyz_pred = predict_xyzrot_from_multiple_camera(cam_name_list, fine_mover, rob_arm)
+                step_size = np.linalg.norm(delta_xyz_pred)
+                print(step_size)
+                gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
+                rot_matrix = np.dot(gripper_pose[:3, :3], delta_rot_pred[:3, :3])
+                gripper_pose[:3, :3] = rot_matrix
+                gripper_pose[:3, 3] += delta_xyz_pred
+                rob_arm.movement(gripper_pose)
+                if step_size < 0.004 or cnt >= 5:
+                    break
+                cnt = cnt+1
 
-    insertion_succ = sum(insertion_succ_list) / len(insertion_succ_list)
-    print('insertion success rate : ' + str(insertion_succ))
+            # insertion
+            robot_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
+            robot_pose[:3, 3] -= robot_pose[:3, 0] * 0.05  # x-axis
+            rob_arm.movement(robot_pose)
+
+            # record insertion
+            peg_keypoint_bottom_pose = rob_arm.get_object_matrix(obj_name=peg_bottom)
+            hole_keypoint_bottom_pose = rob_arm.get_object_matrix(obj_name=hole_bottom)
+            dist = np.linalg.norm(peg_keypoint_bottom_pose[:3, 3] - hole_keypoint_bottom_pose[:3, 3])
+            print('dist', dist)
+            #f.write(str(tilt_degree) + ' ' + str(dist) + '\n')
+            if dist < 0.005:
+                insertion_succ_list.append(1)
+            else:
+                insertion_succ_list.append(0)
+
+            # pull up
+            robot_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
+            robot_pose[:3, 3] += robot_pose[:3, 0] * 0.1  # x-axis
+            rob_arm.movement(robot_pose)
+
+        insertion_succ = sum(insertion_succ_list) / len(insertion_succ_list)
+        msg = hole_name + ' hole success rate : ' + str(insertion_succ * 100)+ '% (' + str(sum(insertion_succ_list)) + '/' + str(len(insertion_succ_list)) + ')'
+        print(msg)
+        f.write(msg + '\n')
+        rob_arm.finish()
     f.close()
-    f.close()
-    rob_arm.finish()
 
 
 if __name__ == '__main__':

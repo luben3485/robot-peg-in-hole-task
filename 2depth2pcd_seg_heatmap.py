@@ -33,7 +33,7 @@ def depth_2_pcd(depth, factor, K):
 
 def main():
 
-    data_root = '/home/luben/data/pdc/logs_proto/insertion_xyzrot_eye_close_2022-01-12_tmp/processed'
+    data_root = '/home/luben/data/pdc/logs_proto/insertion_xyzrot_eye_2022-01-07_tmp/processed'
     #data_root = '/home/luben/data/pdc/logs_proto/insertion_xyzrot_eye_close_2021-12-30/processed'
     image_folder_path = os.path.join(data_root, 'images')
     pcd_folder_path = os.path.join(data_root, 'pcd')
@@ -136,7 +136,7 @@ def main():
         '''
         # hole pcd
         hole_seg_pcd = o3d.geometry.PointCloud()
-        hole_seg_pcd.points = o3d.utility.Vector3dVector(hole_seg_xyz*1000)
+        hole_seg_pcd.points = o3d.utility.Vector3dVector(hole_seg_xyz)
         o3d.io.write_point_cloud(os.path.join(data_root, 'hole_seg_pcd_' + str(key) + '.ply'), hole_seg_pcd)
         '''
 
