@@ -139,53 +139,32 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         keypoint_yaml_file.close()
 
         # Iterate over image
-        entry_list = []
-        for image_key in keypoint_yaml_map.keys():
-            image_map = keypoint_yaml_map[image_key]
-            image_entry = self._get_image_entry(image_map, scene_root)
-            if image_entry is not None and self._check_image_entry(image_entry):
-                entry_list.append(image_entry)
-
+        track_list = []
+        for track_key in keypoint_yaml_map.keys():
+            entry_list = []
+            track_map = keypoint_yaml_map[track_key]
+            for image_key in track_map.keys():
+                image_map = track_map[image_key]
+                image_entry = self._get_image_entry(image_map, scene_root)
+                if image_entry is not None and self._check_image_entry(image_entry):
+                    entry_list.append(image_entry)
+            track_list.append(entry_list)
         # Ok
-        return entry_list
+        return track_list
 
     def _get_image_entry(self, image_map, scene_root: str) -> SupervisedKeypointDBEntry:
         entry = SupervisedKeypointDBEntry()
         # The path for rgb image
-        #rgb_name = image_map['rgb_image_filename']
-        # multi-view pic, the main pic is chosen now
-        #rgb_name = image_map['rgb_image_filename'][0]
-        rgb_path = []
-        for rgb_name in image_map['rgb_image_filename']:    
-            rgb_path.append(os.path.join(scene_root, 'processed/images/' + rgb_name))
-        #assert os.path.exists(rgb_path)
+        rgb_name = image_map['rgb_image_filename']
+        rgb_path = os.path.join(scene_root, 'processed/images/' + rgb_name)
+        assert os.path.exists(rgb_path)
         entry.rgb_image_path = rgb_path
 
         # The path for depth image
-        #depth_name = image_map['depth_image_filename']
-        # multi-view pic, the main pic is chosen now
-        #depth_name = image_map['depth_image_filename'][0]
-        depth_path = []
-        for depth_name in image_map['depth_image_filename']:    
-            depth_path.append(os.path.join(scene_root, 'processed/images/' + depth_name))
-        #assert os.path.exists(depth_path) # Spartan must have depth image
+        depth_name = image_map['depth_image_filename']
+        depth_path = os.path.join(scene_root, 'processed/images/' + depth_name)
+        assert os.path.exists(depth_path) # Spartan must have depth image
         entry.depth_image_path = depth_path
-        
-        # The path for pcd
-        ''' old version
-        pcd_name = depth_name.split('.')[0] + '.npy'
-        pcd_path = os.path.join(scene_root, 'processed/pcd/' + pcd_name)
-        assert os.path.exists(pcd_path)
-        entry.pcd_path = pcd_path
-        '''
-        pcd_name = image_map['pcd']
-        pcd_path = os.path.join(scene_root, 'processed/pcd_seg_heatmap_3kpt/' + pcd_name)
-        assert os.path.exists(pcd_path)
-        entry.pcd_path = pcd_path
-        
-        # pcd centroid & pcd mean
-        entry.pcd_centroid = np.array(image_map['pcd_centroid'])
-        entry.pcd_mean = np.array(image_map['pcd_mean'])
         
         '''
         # The path for mask image
@@ -196,20 +175,10 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         '''
         # xyzrot
         entry.delta_rotation_matrix = np.array(image_map['delta_rotation_matrix']).reshape((3,3))
-        #entry.delta_rot_cls = np.array(image_map['cls']).reshape((3,))
         entry.delta_translation = np.array(image_map['delta_translation']).reshape((3,))
         entry.gripper_pose = np.array(image_map['gripper_pose']).reshape((4,4))
-        #step_size_value = max(min(image_map['step_size'], 1.0), 0.0)
-        step_size_value = np.linalg.norm(entry.delta_translation)
-        if step_size_value == 0:
-            entry.unit_delta_translation = entry.delta_translation
-        else:
-            entry.unit_delta_translation = entry.delta_translation / step_size_value
-        step_size_value = step_size_value*100
-        if step_size_value >= 1.0:
-            entry.step_size = np.array([1.0]).reshape((1,))
-        else:
-            entry.step_size = np.array([step_size_value]).reshape((1,))
+        step_size_value = max(min(image_map['step_size'], 1.0), 0.0)
+        entry.step_size = np.array([step_size_value]).reshape((1,))
 
         # The camera pose in world
         camera2world_map = image_map['camera_to_world']
@@ -290,8 +259,10 @@ def spartan_db_test():
     config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20210813.txt'
     database = SpartanSupervisedKeypointDatabase(config)
     entry_list = database.get_entry_list()
+    print('len of entry_list:',len(entry_list))
     for entry in entry_list:
-        assert sanity_check_spartan(entry)
+        print('len of entry:',len(entry))
+        #assert sanity_check_spartan(entry)
 
 
 if __name__ == '__main__':

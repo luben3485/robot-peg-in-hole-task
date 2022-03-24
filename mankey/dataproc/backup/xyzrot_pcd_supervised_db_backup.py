@@ -165,10 +165,10 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         #depth_name = image_map['depth_image_filename']
         # multi-view pic, the main pic is chosen now
         #depth_name = image_map['depth_image_filename'][0]
-        depth_path = []
-        for depth_name in image_map['depth_image_filename']:    
-            depth_path.append(os.path.join(scene_root, 'processed/images/' + depth_name))
-        #assert os.path.exists(depth_path) # Spartan must have depth image
+        rgb_path = []
+        for rgb_name in image_map['rgb_image_filename']:    
+        depth_path = os.path.join(scene_root, 'processed/images/' + depth_name)
+        assert os.path.exists(depth_path) # Spartan must have depth image
         entry.depth_image_path = depth_path
         
         # The path for pcd

@@ -1,5 +1,7 @@
 # The string key for dataset
 rgbd_image_key = 'rgbd_image'
+rgb_pair_key = 'rgb_pair'
+depth_pair_key = 'depth_pair'
 pcd_key = 'pcd'
 heatmap_key = 'heatmap'
 segmentation_key = 'segmentation'

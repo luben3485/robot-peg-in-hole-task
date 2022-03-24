@@ -84,12 +84,13 @@ class ProcessedEntry:
     # Some method to check the existance of entry
     @property
     def has_depth(self):
-        return self.cropped_depth.shape == self.cropped_rgb.shape[0:2]
+        return True
+        #return self.cropped_depth.shape == self.cropped_rgb.shape[0:2]
 
     @property
     def has_mask(self):
         return self.cropped_binary_mask.shape == self.cropped_rgb.shape[0:2]
-
+    
 
 class SupervisedKeypointDataset(data.Dataset):
 
@@ -130,9 +131,12 @@ class SupervisedKeypointDataset(data.Dataset):
         from mankey.utils.imgproc import rgb_image_normalize, depth_image_normalize
         # The randomization on rgb
         color_aug_scale = self._get_color_randomization_parameter()
-        normalized_rgb = rgb_image_normalize(processed_entry.cropped_rgb, self._config.rgb_mean, color_aug_scale)
-        rgb_channels, height, width = normalized_rgb.shape
-
+        normalized_rgb = []
+        for cropped_rgb in processed_entry.cropped_rgb:   
+            rgb = rgb_image_normalize(cropped_rgb, self._config.rgb_mean, color_aug_scale)
+            normalized_rgb.append(rgb)
+        rgb_channels, height, width = normalized_rgb[0].shape
+        
         # Check the total size of tensor
         tensor_channels = rgb_channels
         if processed_entry.has_depth:
@@ -140,19 +144,29 @@ class SupervisedKeypointDataset(data.Dataset):
 
         # Construct the tensor
         stacked_tensor = np.zeros(shape=(tensor_channels, height, width), dtype=np.float32)
-        stacked_tensor[0:rgb_channels, :, :] = normalized_rgb
+        stacked_tensor[0:rgb_channels, :, :] = normalized_rgb[0]
 
         # Process other channels
         channel_offset = rgb_channels
         if processed_entry.has_depth:
             # The depth should not be randomized
+            normalized_depth = []
+            for cropped_depth in processed_entry.cropped_depth:
+                cropped_depth[cropped_depth >= self._config.depth_image_clip] = 0
+                depth = cv2.normalize(cropped_depth, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+                normalized_depth.append(depth)
+            ''' 
             normalized_depth = depth_image_normalize(
                 processed_entry.cropped_depth,
                 self._config.depth_image_clip,
                 self._config.depth_image_mean,
                 self._config.depth_image_scale)
-            stacked_tensor[channel_offset, :, :] = normalized_depth
+            '''
+            stacked_tensor[channel_offset, :, :] = normalized_depth[0]
             channel_offset += 1
+            
+        rgb_pair = np.concatenate((normalized_rgb[0],normalized_rgb[1]), axis=0)
+        depth_pair = np.stack(normalized_depth)
 
         # Do scale on keypoint xy and depth
         normalized_keypoint_xy_depth = processed_entry.keypoint_xy_depth.copy()
@@ -166,6 +180,8 @@ class SupervisedKeypointDataset(data.Dataset):
         validity = np.transpose(processed_entry.keypoint_validity, (1, 0))
         return {
             parameter.rgbd_image_key: stacked_tensor,
+            parameter.rgb_pair_key: rgb_pair,
+            parameter.depth_pair_key: depth_pair,
             parameter.pcd_key: processed_entry.pcd.astype(np.float32),
             parameter.heatmap_key: processed_entry.heatmap.astype(np.float32),
             parameter.segmentation_key: processed_entry.segmentation.astype(np.float32),
@@ -210,13 +226,17 @@ class SupervisedKeypointDataset(data.Dataset):
         scale, rot_rad = self._get_geometric_augmentation_parameter(entry)
 
         # The rgb image
-        warped_rgb, bbox2patch = get_bbox_cropped_image_path(
-            imgpath=entry.rgb_image_path, is_rgb=True,
-            bbox_topleft=entry.bbox_top_left, bbox_bottomright=entry.bbox_bottom_right,
-            patch_width=self._network_in_patch_width, patch_height=self._network_in_patch_height,
-            bbox_scale=self._config.bbox_scale, on_boundary=entry.on_boundary,
-            scale=scale, rot_rad=rot_rad)
+        warped_rgb = []
 
+        for rgb_path in entry.rgb_image_path:
+            rgb, bbox2patch = get_bbox_cropped_image_path(
+                imgpath=rgb_path, is_rgb=True,
+                bbox_topleft=entry.bbox_top_left, bbox_bottomright=entry.bbox_bottom_right,
+                patch_width=self._network_in_patch_width, patch_height=self._network_in_patch_height,
+                bbox_scale=self._config.bbox_scale, on_boundary=entry.on_boundary,
+                scale=scale, rot_rad=rot_rad)
+            warped_rgb.append(rgb)
+            
         # Transform the keypoint
         pixelxy_depth, validity = self._get_transformed_keypoint(
             bbox2patch, entry,
@@ -261,12 +281,15 @@ class SupervisedKeypointDataset(data.Dataset):
 
         # The depth image
         if entry.has_depth:
-            warped_depth, _ = get_bbox_cropped_image_path(
-                imgpath=entry.depth_image_path, is_rgb=False,
-                bbox_topleft=entry.bbox_top_left, bbox_bottomright=entry.bbox_bottom_right,
-                patch_width=self._network_in_patch_width, patch_height=self._network_in_patch_height,
-                bbox_scale=self._config.bbox_scale, on_boundary=entry.on_boundary,
-                scale=scale, rot_rad=rot_rad)
+            warped_depth = []
+            for depth_path in entry.depth_image_path:
+                depth, _ = get_bbox_cropped_image_path(
+                    imgpath=depth_path, is_rgb=False,
+                    bbox_topleft=entry.bbox_top_left, bbox_bottomright=entry.bbox_bottom_right,
+                    patch_width=self._network_in_patch_width, patch_height=self._network_in_patch_height,
+                    bbox_scale=self._config.bbox_scale, on_boundary=entry.on_boundary,
+                    scale=scale, rot_rad=rot_rad)
+                warped_depth.append(depth)
             processed_entry.cropped_depth = warped_depth
 
         # The binary mask

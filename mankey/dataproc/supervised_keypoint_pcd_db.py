@@ -8,10 +8,10 @@ from typing import List
 @attr.s
 class SupervisedKeypointDBEntry:
     # The path to rgb is must
-    rgb_image_path = ''
+    rgb_image_path = []
 
     # The path to depth image
-    depth_image_path = ''
+    depth_image_path = []
 
     pcd_path = ''
     
