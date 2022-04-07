@@ -179,7 +179,7 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         entry.pcd_path = pcd_path
         '''
         pcd_name = image_map['pcd']
-        pcd_path = os.path.join(scene_root, 'processed/pcd_seg_heatmap_3kpt/' + pcd_name)
+        pcd_path = os.path.join(scene_root, 'processed/pcd_seg_heatmap_kpt_dir/' + pcd_name)
         assert os.path.exists(pcd_path)
         entry.pcd_path = pcd_path
         

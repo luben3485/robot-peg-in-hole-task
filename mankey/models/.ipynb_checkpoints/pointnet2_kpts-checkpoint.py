@@ -196,7 +196,29 @@ class get_model(nn.Module):
         
         return kpt_of_pred, trans_of_pred, rot_of_pred, mean_kpt_pred, rot_mat_pred, confidence
 
-    
+    def forward_test(self, xyz):
+        global_features, point_features = self.backbone(xyz)
+        kpt_of_pred = self.kpt_of_net(point_features)
+        confidence = self.mask_net(point_features)
+        # compute kpt
+        xyz = xyz.permute(0, 2, 1)
+        kpt_pred = xyz - kpt_of_pred[:, :, :3]  # (B, N, 3)
+        kpt_x_pred = xyz - kpt_of_pred[:, :, 3:6]  # (B, N, 3)
+        kpt_y_pred = xyz - kpt_of_pred[:, :, 6:]  # (B, N, 3)
+        mean_kpt_pred = torch.sum(kpt_pred * confidence, dim=1) / torch.sum(confidence, dim=1)
+        mean_kpt_x_pred = torch.sum(kpt_x_pred * confidence, dim=1) / torch.sum(confidence, dim=1)
+        mean_kpt_y_pred = torch.sum(kpt_y_pred * confidence, dim=1) / torch.sum(confidence, dim=1)
+        # mean_kpt_pred = torch.mean(kpt_pred, dim=1)
+        vec_x_pred = mean_kpt_pred - mean_kpt_x_pred
+        vec_y_pred = mean_kpt_pred - mean_kpt_y_pred
+        ortho6d = torch.cat((vec_x_pred, vec_y_pred), axis=1)
+        rot_mat_pred = compute_rotation_matrix_from_ortho6d(ortho6d, use_cpu=self.use_cpu)
+        trans_of_pred, rot_of_6d_pred = self.actionnet(global_features, mean_kpt_pred, rot_mat_pred)
+        rot_of_pred = compute_rotation_matrix_from_ortho6d(rot_of_6d_pred, use_cpu=self.use_cpu)
+
+        return kpt_of_pred, trans_of_pred, rot_of_pred, mean_kpt_pred, mean_kpt_x_pred, mean_kpt_y_pred, rot_mat_pred, confidence
+
+
 if __name__ == '__main__':
     import os
     '''HYPER PARAMETER'''

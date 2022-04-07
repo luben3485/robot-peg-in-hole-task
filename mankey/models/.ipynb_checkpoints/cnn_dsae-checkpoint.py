@@ -175,8 +175,8 @@ class action_net(nn.Module):
     def forward(self, kpts):
         b = kpts.shape[0]
         kpts = kpts.view(b, -1)
-        x = F.relu(self.bn1(self.fc1(kpts)))
-        x = F.relu(self.bn2(self.fc2(x)))
+        x = F.leaky_relu(self.bn1(self.fc1(kpts)))
+        x = F.leaky_relu(self.bn2(self.fc2(x)))
         x = self.fc3(x)
         xyz_pred = x[:, :3]
         rot_pred = x[:, 3:9]

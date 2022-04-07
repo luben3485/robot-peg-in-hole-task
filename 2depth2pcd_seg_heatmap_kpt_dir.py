@@ -39,16 +39,18 @@ def parse_args():
     '''PARAMETERS'''
     parser = argparse.ArgumentParser()
     parser.add_argument('--folder_path', type=str, default='2022-02-26-test/coarse_insertion_square_2022-02-26-test', help='folder path')
-
+    parser.add_argument('--offset', type=str, default='kpts')
     return parser.parse_args()
 
 
 def main(args):
-
     data_root = os.path.join('/tmp2/r09944001/data/pdc/logs_proto', args.folder_path, 'processed')
     image_folder_path = os.path.join(data_root, 'images')
     pcd_folder_path = os.path.join(data_root, 'pcd')
-    pcd_seg_heatmap_kpt_folder_path = os.path.join(data_root, 'pcd_seg_heatmap_3kpt')
+    if args.offset == 'kpts':
+        pcd_seg_heatmap_kpt_folder_path = os.path.join(data_root, 'pcd_seg_heatmap_3kpt')
+    elif args.offset == 'kpt_dir':
+        pcd_seg_heatmap_kpt_folder_path = os.path.join(data_root, 'pcd_seg_heatmap_kpt_dir')
     # create folder
     cwd = os.getcwd()
     os.chdir(data_root)
@@ -56,6 +58,8 @@ def main(args):
         os.makedirs('pcd')
     if not os.path.exists('pcd_seg_heatmap_3kpt'):
         os.makedirs('pcd_seg_heatmap_3kpt')
+    if not os.path.exists('pcd_seg_heatmap_kpt_dir'):
+        os.makedirs('pcd_seg_heatmap_kpt_dir')
     os.chdir(cwd)
 
 
@@ -148,12 +152,6 @@ def main(args):
             if seg_label[idx] == 0:
                 heatmap_label[idx] = 0
 
-        # determine x-axis & y-axis keypoint
-        hole_x_vec = hole_keypoint_top_pose_in_world[:3, 0]
-        hole_y_vec = hole_keypoint_top_pose_in_world[:3, 1]
-        hole_keypoint_top_x_pos_in_world = hole_keypoint_top_pos_in_world - hole_x_vec * 0.025
-        hole_keypoint_top_y_pos_in_world = hole_keypoint_top_pos_in_world - hole_y_vec * 0.025
-        # determine keypoint offset
         # normalize pcd data(unit:mm)
         concat_xyz_in_world = np.array(concat_xyz_in_world)
         normal_xyz_in_world = copy.deepcopy(concat_xyz_in_world)
@@ -161,23 +159,68 @@ def main(args):
         normal_xyz_in_world = normal_xyz_in_world - centroid
         m = np.max(np.sqrt(np.sum(normal_xyz_in_world ** 2, axis=1)))
         normal_xyz_in_world = normal_xyz_in_world / m
-            
-        # normalize hole's top keypoint 
-        normal_hole_keypoint_top_pos_in_world = (hole_keypoint_top_pos_in_world * 1000 - centroid) / m
-        normal_hole_keypoint_top_x_pos_in_world = (hole_keypoint_top_x_pos_in_world * 1000 - centroid) / m
-        normal_hole_keypoint_top_y_pos_in_world = (hole_keypoint_top_y_pos_in_world * 1000 - centroid) / m
-        # keypoint offset
-        kpt_of_gt = normal_xyz_in_world - normal_hole_keypoint_top_pos_in_world
-        kpt_of_x_gt = normal_xyz_in_world - normal_hole_keypoint_top_x_pos_in_world
-        kpt_of_y_gt = normal_xyz_in_world - normal_hole_keypoint_top_y_pos_in_world
-        
+        if args.offset == 'kpts':
+            # determine x-axis & y-axis keypoint
+            hole_x_vec = hole_keypoint_top_pose_in_world[:3, 0]
+            hole_y_vec = hole_keypoint_top_pose_in_world[:3, 1]
+            hole_keypoint_top_x_pos_in_world = hole_keypoint_top_pos_in_world - hole_x_vec * 0.025
+            hole_keypoint_top_y_pos_in_world = hole_keypoint_top_pos_in_world - hole_y_vec * 0.025
+            # normalize hole's top keypoint
+            normal_hole_keypoint_top_pos_in_world = (hole_keypoint_top_pos_in_world * 1000 - centroid) / m
+            normal_hole_keypoint_top_x_pos_in_world = (hole_keypoint_top_x_pos_in_world * 1000 - centroid) / m
+            normal_hole_keypoint_top_y_pos_in_world = (hole_keypoint_top_y_pos_in_world * 1000 - centroid) / m
+            # keypoint offset
+            kpt_of_gt = normal_xyz_in_world - normal_hole_keypoint_top_pos_in_world
+            kpt_of_x_gt = normal_xyz_in_world - normal_hole_keypoint_top_x_pos_in_world
+            kpt_of_y_gt = normal_xyz_in_world - normal_hole_keypoint_top_y_pos_in_world
+        elif args.offset == 'kpt_dir':
+            # determine x-axis & y-axis vector
+            x_vec = hole_keypoint_top_pose_in_world[:3, 0] #unit vec
+            y_vec = hole_keypoint_top_pose_in_world[:3, 1] #unit vec
+            x_0 = hole_keypoint_top_pos_in_world[0] * 1000
+            x_1 = hole_keypoint_top_pos_in_world[1] * 1000
+            x_2 = hole_keypoint_top_pos_in_world[2] * 1000
+            dir_x = []
+            dir_y = []
+            for xyz in concat_xyz_in_world:
+                t_x =(x_vec[0] * (xyz[0]-x_0) + x_vec[1] * (xyz[1]-x_1) + x_vec[2] * (xyz[2]-x_2)) / (x_vec[0]**2 + x_vec[1]**2 + x_vec[2] **2)
+                shortest_kpt_x = np.array([x_0+x_vec[0]*t_x, x_1+x_vec[1]*t_x, x_2+x_vec[2]*t_x])
+                dir_x.append(shortest_kpt_x)
+                t_y = (y_vec[0] * (xyz[0] - x_0) + y_vec[1] * (xyz[1] - x_1) + y_vec[2] * (xyz[2] - x_2)) / ( y_vec[0] ** 2 + y_vec[1] ** 2 + y_vec[2] ** 2)
+                shortest_kpt_y = np.array([x_0 + y_vec[0] * t_y, x_1 + y_vec[1] * t_y, x_2 + y_vec[2] * t_y])
+                dir_y.append(shortest_kpt_y)
+            dir_x = np.array(dir_x)
+            dir_y = np.array(dir_y)
+
+            # keypoint offset
+            normal_hole_keypoint_top_pos_in_world = (hole_keypoint_top_pos_in_world * 1000 - centroid) / m
+            normal_dir_x = (dir_x - centroid) / m
+            normal_dir_y = (dir_y - centroid) / m
+            kpt_of_gt = normal_xyz_in_world - normal_hole_keypoint_top_pos_in_world
+            kpt_of_x_gt = normal_xyz_in_world - normal_dir_x
+            kpt_of_y_gt = normal_xyz_in_world - normal_dir_y
+            # test dir_x & dir_y
+            if key == 0:
+                normal_dir_x = normal_xyz_in_world - kpt_of_x_gt
+                normal_dir_y = normal_xyz_in_world - kpt_of_y_gt
+                dir_x = normal_dir_x * m + centroid
+                dir_y = normal_dir_y * m + centroid
+                xyz_in_world = normal_xyz_in_world * m + centroid
+                xyz = np.concatenate((xyz_in_world, dir_x, dir_y), axis=0).astype(np.float32)
+                point_color = np.repeat([[0.9, 0.9, 0.9]], xyz_in_world.shape[0], axis=0)
+                dir_x_color = np.repeat([[1.0, 0.0, 0.0]], dir_x.shape[0], axis=0)
+                dir_y_color = np.repeat([[0.0, 0.0, 1.0]], dir_y.shape[0], axis=0)
+                color = np.concatenate((point_color, dir_x_color, dir_y_color), axis=0).astype(np.float32)
+                hole_dir_pcd = o3d.geometry.PointCloud()
+                hole_dir_pcd.points = o3d.utility.Vector3dVector(xyz)
+                hole_dir_pcd.colors = o3d.utility.Vector3dVector(color)
+                o3d.io.write_point_cloud(os.path.join(data_root, 'hole_dir_pcd_' + str(key) + '.ply'), hole_dir_pcd)
         '''
         # hole pcd visualize(make sure that the scale of pcd is in mm)
         hole_seg_pcd = o3d.geometry.PointCloud()
         hole_seg_pcd.points = o3d.utility.Vector3dVector(hole_seg_xyz)
         o3d.io.write_point_cloud(os.path.join(data_root, 'hole_seg_pcd_' + str(key) + '.ply'), hole_seg_pcd)
         '''
-
         pcd_filename = str(key).zfill(6) + '_xyz.npy'
         seg_label = np.array(seg_label).reshape(-1,1) # n x 1
         heatmap_label = np.array(heatmap_label).reshape(-1, 1)  # n x 1
@@ -186,13 +229,14 @@ def main(args):
         xyz_seg_heatmap_kptof = np.concatenate((xyz_seg_heatmap, kpt_of_gt), axis=1).astype(np.float32)  # n x 8
         xyz_seg_heatmap_kptof = np.concatenate((xyz_seg_heatmap_kptof, kpt_of_x_gt), axis=1).astype(np.float32)  # n x 11
         xyz_seg_heatmap_kptof = np.concatenate((xyz_seg_heatmap_kptof, kpt_of_y_gt), axis=1).astype(np.float32)  # n x 14
+
         np.save(os.path.join(pcd_seg_heatmap_kpt_folder_path, pcd_filename), xyz_seg_heatmap_kptof)
         data[key]['pcd'] = pcd_filename
         # save mean and centroid of pcd
         data[key]['pcd_mean'] = m.item()
         data[key]['pcd_centroid'] = centroid.tolist()
         
-        if key == 0:
+        if key == 0 and args.offset == 'kpts':
             kpts = np.array([hole_keypoint_top_pos_in_world*1000,hole_keypoint_top_x_pos_in_world*1000, hole_keypoint_top_y_pos_in_world*1000])
             concat_pcd = o3d.geometry.PointCloud()
             concat_pcd.points = o3d.utility.Vector3dVector(np.concatenate((concat_xyz_in_world, kpts), axis=0))

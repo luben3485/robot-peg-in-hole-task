@@ -425,14 +425,14 @@ def main(args):
                 torch.save(state, savepath)
             global_epoch += 1
             '''
-            if (kptof_error + xyz_error + rot_error + mask_error) < (best_kptof_error + best_xyz_error + best_rot_error+ best_mask_error):
+            if (kptof_error + mask_error) < (best_kptof_error + best_mask_error):
                 best_kptof_error = kptof_error
                 best_xyz_error = xyz_error
                 best_rot_error = rot_error
                 best_mask_error = mask_error
                 best_epoch = epoch + 1
                 logger.info('Save model...')
-                savepath = str(checkpoints_dir) + '/best_model.pth'
+                savepath = str(checkpoints_dir) + '/best_model_e_' + str(best_epoch) + '.pth'
                 log_string('Saving at %s' % savepath)
                 state = {
                     'epoch': best_epoch,

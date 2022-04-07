@@ -431,7 +431,7 @@ def main(args):
                 best_mask_error = mask_error
                 best_epoch = epoch + 1
                 logger.info('Save model...')
-                savepath = str(checkpoints_dir) + '/best_model.pth'
+                savepath = str(checkpoints_dir) + '/best_model_e_' + str(best_epoch) + '.pth'
                 log_string('Saving at %s' % savepath)
                 state = {
                     'epoch': best_epoch,

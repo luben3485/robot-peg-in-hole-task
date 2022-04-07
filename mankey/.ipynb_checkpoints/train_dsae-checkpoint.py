@@ -5,7 +5,7 @@ Date: Nov 2019
 
 import os
 '''HYPER PARAMETER'''
-os.environ["CUDA_VISIBLE_DEVICES"] = '7'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 import sys
 import torch
 from torch.utils.data import DataLoader
@@ -58,9 +58,9 @@ def construct_dataset(is_train: bool) -> (torch.utils.data.Dataset, SupervisedKe
     db_config.keypoint_yaml_name = 'peg_in_hole.yaml'
     db_config.pdc_data_root = '/tmp2/r09944001/data/pdc'
     if is_train:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220112_fine.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220322_fine_notilt.txt'
     else:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220112_fine.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220322_fine_notilt.txt'
     database = SpartanSupervisedKeypointDatabase(db_config)
 
     # Construct torch dataset
@@ -80,7 +80,7 @@ def inplace_relu(m):
         m.inplace=True
         
 
-def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof):
+def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof, criterion_mae):
    
     xyz_error = []
     rot_error = []
@@ -93,7 +93,8 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
         depth_pair = data[parameter.depth_pair_key]
         delta_rot = data[parameter.delta_rot_key]
         delta_xyz = data[parameter.delta_xyz_key]
-             
+        delta_xyz *= 100
+
         if not args.use_cpu:
             delta_rot = delta_rot.cuda()
             delta_xyz = delta_xyz.cuda()
@@ -107,7 +108,8 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
         delta_xyz_pred, delta_rot_pred, depth_pred = network(rgb_pair)
         
         # loss computation
-        loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
+        #loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
+        loss_t =  criterion_rmse(delta_xyz_pred, delta_xyz) + criterion_mae(delta_xyz_pred, delta_xyz)
         loss_r = criterion_rmse(delta_rot_pred, delta_rot)
         loss_recon = criterion_rmse(depth_pred, depth_pair)
         
@@ -178,6 +180,7 @@ def main(args):
     criterion_cos = torch.nn.CosineSimilarity(dim=1)
     criterion_bce = torch.nn.BCELoss()
     criterion_kptof = OFLoss()
+    criterion_mae = torch.nn.L1Loss()
     network.apply(inplace_relu)
 
     if not args.use_cpu:
@@ -186,6 +189,7 @@ def main(args):
         criterion_cos = criterion_cos.cuda()
         criterion_bce = criterion_bce.cuda()
         criterion_kptof = criterion_kptof.cuda()
+        criterion_mae = criterion_mae.cuda()
     try:
         checkpoint = torch.load(str(exp_dir) + '/checkpoints/best_model.pth')
         start_epoch = checkpoint['epoch']
@@ -230,7 +234,7 @@ def main(args):
             depth_pair = data[parameter.depth_pair_key]
             delta_rot = data[parameter.delta_rot_key]
             delta_xyz = data[parameter.delta_xyz_key]
-            
+            delta_xyz *= 100
              
             if not args.use_cpu:
                 delta_rot = delta_rot.cuda()
@@ -244,10 +248,12 @@ def main(args):
             # depth (B,1,H,W) depth_pair (B,2,H,W)
             delta_xyz_pred, delta_rot_pred, depth_pred = network(rgb_pair)
             # loss computation
-            loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
+            #loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
+            loss_t =  criterion_rmse(delta_xyz_pred, delta_xyz) + criterion_mae(delta_xyz_pred, delta_xyz)
             loss_r = criterion_rmse(delta_rot_pred, delta_rot)
             loss_recon = criterion_rmse(depth_pred, depth_pair)
-            loss = loss_t + loss_r + loss_recon
+            #loss = loss_t + loss_r + loss_recon
+            loss = loss_t + loss_recon
             loss.backward()
             optimizer.step()
             global_step += 1
@@ -264,12 +270,13 @@ def main(args):
         log_string('Train Rotation Error: %f' % train_rot_error)
         log_string('Train Reconstruction Error: %f' % train_recon_error)
         with torch.no_grad():
-            xyz_error, rot_error, recon_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof)
+            xyz_error, rot_error, recon_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof, criterion_mae)
         
             log_string('Test Translation Error: %f, Rotation Error: %f, Reconstruction Error: %f' % (xyz_error, rot_error, recon_error))
             log_string('Best Translation Error: %f, Rotation Error: %f, Reconstruction Error: %f' % (best_xyz_error, best_rot_error, best_recon_error))
 
-            if (xyz_error + rot_error + recon_error) < (best_xyz_error + best_rot_error+ best_recon_error):
+            #if (xyz_error + rot_error + recon_error) < (best_xyz_error + best_rot_error+ best_recon_error):
+            if (xyz_error + recon_error) < (best_xyz_error + best_recon_error):
                 best_xyz_error = xyz_error
                 best_rot_error = rot_error
                 best_recon_error = recon_error
