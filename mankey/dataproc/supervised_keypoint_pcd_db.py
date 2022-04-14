@@ -51,6 +51,7 @@ class SupervisedKeypointDBEntry:
 
     # xyzrot
     delta_rotation_matrix = np.ndarray(shape=[3, 3])
+    delta_rot_euler = np.ndarray(shape=[3,])
     delta_translation = np.ndarray(shape=[3,])
     unit_delta_translation = np.ndarray(shape=[3,])
     gripper_pose = np.ndarray(shape=[4, 4])

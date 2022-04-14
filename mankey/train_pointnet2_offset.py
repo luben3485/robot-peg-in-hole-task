@@ -5,7 +5,7 @@ Date: Nov 2019
 
 import os
 '''HYPER PARAMETER'''
-os.environ["CUDA_VISIBLE_DEVICES"] = '4'
+os.environ["CUDA_VISIBLE_DEVICES"] = '3'
 import sys
 import torch
 from torch.utils.data import DataLoader
@@ -58,9 +58,9 @@ def construct_dataset(is_train: bool) -> (torch.utils.data.Dataset, SupervisedKe
     db_config.keypoint_yaml_name = 'peg_in_hole.yaml'
     db_config.pdc_data_root = '/tmp2/r09944001/data/pdc'
     if is_train:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220328_fine.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220412_fine_test.txt'
     else:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220328_fine.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220412_fine_test.txt'
     database = SpartanSupervisedKeypointDatabase(db_config)
 
     # Construct torch dataset
@@ -89,21 +89,28 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
         points = data[parameter.pcd_key].numpy()
         points = torch.Tensor(points)
         points = points.transpose(2, 1)
-        delta_xyz = data[parameter.delta_xyz_key]
         delta_rot = data[parameter.delta_rot_key]
-
+        delta_xyz = data[parameter.delta_xyz_key]
+        delta_xyz *= 200
+        delta_rot_euler = data[parameter.delta_rot_euler_key]
+        delta_rot_euler /= 5
+        
         if not args.use_cpu:
             points = points.cuda()
-            delta_xyz = delta_xyz.cuda()
             delta_rot = delta_rot.cuda()
+            delta_xyz = delta_xyz.cuda()
+            delta_rot_euler = delta_rot_euler.cuda()
             
+        '''    
         delta_xyz_pred, delta_rot_6d_pred = network(points)
         delta_xyz_pred.view(-1,3) # batch*3
         delta_rot_pred = compute_rotation_matrix_from_ortho6d(delta_rot_6d_pred, args.use_cpu) # batch*3*3
+        '''
+        delta_xyz_pred, delta_rot_euler_pred = network(points)
     
         # loss computation
         loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
-        loss_r = criterion_rmse(delta_rot_pred, delta_rot)
+        loss_r = criterion_rmse(delta_rot_euler_pred, delta_rot_euler)
        
         xyz_error.append(loss_t.item())
         rot_error.append(loss_r.item())
@@ -225,19 +232,25 @@ def main(args):
             points = points.transpose(2, 1)
             delta_rot = data[parameter.delta_rot_key]
             delta_xyz = data[parameter.delta_xyz_key]
-            delta_xyz *= 100
+            delta_xyz *= 200
+            delta_rot_euler = data[parameter.delta_rot_euler_key]
+            delta_rot_euler /= 5
+
             if not args.use_cpu:
                 points = points.cuda()
                 delta_rot = delta_rot.cuda()
                 delta_xyz = delta_xyz.cuda()
-
+                delta_rot_euler = delta_rot_euler.cuda()
+            '''    
             delta_xyz_pred, delta_rot_6d_pred = network(points)
             delta_xyz_pred.view(-1,3) # batch*3
             delta_rot_pred = compute_rotation_matrix_from_ortho6d(delta_rot_6d_pred, args.use_cpu) # batch*3*3
-    
+            '''
+            delta_xyz_pred, delta_rot_euler_pred = network(points)
+            
             # loss computation
             loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
-            loss_r = criterion_rmse(delta_rot_pred, delta_rot)
+            loss_r = criterion_rmse(delta_rot_euler_pred, delta_rot_euler)
             loss = loss_t + loss_r
             loss.backward()
             optimizer.step()
@@ -249,12 +262,11 @@ def main(args):
         train_xyz_error = sum(train_xyz_error) / len(train_xyz_error)
         train_rot_error = sum(train_rot_error) / len(train_rot_error)
 
-        log_string('Train Rotation Error: %f' % train_rot_error)    
-        log_string('Train Translation Error: %f' % train_xyz_error)
+        log_string('Train Translation Error: %f, Rotation Error: %f' % (train_xyz_error, train_rot_error))    
         with torch.no_grad():
             xyz_error, rot_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof)
-            log_string('Translation Error: %f, Rotation Error: %f' % (xyz_error, rot_error))
-            log_string('Best Translation Error: %f, Rotation Error: %f' % (best_xyz_error, best_rot_error))
+            log_string('Test Translation Error: %f, Rotation Error: %f' % (xyz_error, rot_error))
+            log_string('Best Test Translation Error: %f, Rotation Error: %f' % (best_xyz_error, best_rot_error))
 
             if (xyz_error + rot_error) < (best_xyz_error + best_rot_error):
                 best_xyz_error = xyz_error

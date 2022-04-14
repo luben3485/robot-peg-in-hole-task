@@ -179,7 +179,7 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         entry.pcd_path = pcd_path
         '''
         pcd_name = image_map['pcd']
-        pcd_path = os.path.join(scene_root, 'processed/pcd_seg_heatmap_kpt_dir/' + pcd_name)
+        pcd_path = os.path.join(scene_root, 'processed/pcd_seg_heatmap_3kpt/' + pcd_name)
         assert os.path.exists(pcd_path)
         entry.pcd_path = pcd_path
         
@@ -196,6 +196,7 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         '''
         # xyzrot
         entry.delta_rotation_matrix = np.array(image_map['delta_rotation_matrix']).reshape((3,3))
+        entry.delta_rot_euler = np.array(image_map['r_euler']).reshape((3,))
         #entry.delta_rot_cls = np.array(image_map['cls']).reshape((3,))
         entry.delta_translation = np.array(image_map['delta_translation']).reshape((3,))
         entry.gripper_pose = np.array(image_map['gripper_pose']).reshape((4,4))

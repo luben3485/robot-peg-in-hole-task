@@ -169,7 +169,7 @@ class action_net(nn.Module):
         self.fc2 = nn.Linear(256, 128)
         self.bn2 = nn.BatchNorm1d(128)
         self.drop2 = nn.Dropout(0.4)
-        self.fc3 = nn.Linear(128, 9)
+        self.fc3 = nn.Linear(128, 6)
 
     def forward(self, global_features):
         x = self.drop1(F.leaky_relu(self.bn1(self.fc1(global_features))))
@@ -177,9 +177,9 @@ class action_net(nn.Module):
         x = self.fc3(x)
         
         delta_xyz_pred = x[:, :3]
-        delta_rot_6d_pred = x[:, 3:] 
+        delta_rot_pred = x[:, 3:] 
         
-        return delta_xyz_pred, delta_rot_6d_pred
+        return delta_xyz_pred, delta_rot_pred
         
         
 class get_model(nn.Module):
