@@ -5,7 +5,7 @@ Date: Nov 2019
 
 import os
 '''HYPER PARAMETER'''
-os.environ["CUDA_VISIBLE_DEVICES"] = '3'
+os.environ["CUDA_VISIBLE_DEVICES"] = '4'
 import sys
 import torch
 from torch.utils.data import DataLoader
@@ -39,7 +39,7 @@ def parse_args():
     parser.add_argument('--use_cpu', action='store_true', default=False, help='use cpu mode')
     #parser.add_argument('--gpu', type=str, default='0', help='specify gpu device')
     parser.add_argument('--batch_size', type=int, default=8, help='batch size in training')
-    parser.add_argument('--model', default='pointnet2_kpt_dir', help='model name [default: pointnet_cls]')
+    parser.add_argument('--model', default='pointnet2_offset', help='model name [default: pointnet_cls]')
     parser.add_argument('--out_channel', default=9, type=int)
     parser.add_argument('--epoch', default=200, type=int, help='number of epoch in training')
     parser.add_argument('--learning_rate', default=0.001, type=float, help='learning rate in training')
@@ -81,41 +81,37 @@ def inplace_relu(m):
         
 
 def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof):
-    '''
-    xyz_error = []
-    heatmap_error = []
-    step_size_error = []
-    '''
-    kptof_error = []
+    
     xyz_error = []
     rot_error = []
-    mask_error = []
     network = model.eval()
-
     for j, data in tqdm(enumerate(loader), total=len(loader)):
         points = data[parameter.pcd_key].numpy()
         points = torch.Tensor(points)
         points = points.transpose(2, 1)
-        kpt_of_gt = data[parameter.kpt_of_key]
-        heatmap_target = data[parameter.heatmap_key]
-        
+        delta_xyz = data[parameter.delta_xyz_key]
+        delta_rot = data[parameter.delta_rot_key]
+
         if not args.use_cpu:
             points = points.cuda()
-            kpt_of_gt = kpt_of_gt.cuda()
-            heatmap_target = heatmap_target.cuda()
-           
-        kpt_of_pred, confidence = network(points)
-        # loss computation
-        loss_kptof = criterion_kptof(kpt_of_pred, kpt_of_gt).sum()
-        loss_mask = criterion_rmse(confidence, heatmap_target)
-           
-        kptof_error.append(loss_kptof.item())
-        mask_error.append(loss_mask.item())
-       
-    kptof_error = sum(kptof_error) / len(kptof_error)
-    mask_error = sum(mask_error) / len(mask_error)
+            delta_xyz = delta_xyz.cuda()
+            delta_rot = delta_rot.cuda()
+            
+        delta_xyz_pred, delta_rot_6d_pred = network(points)
+        delta_xyz_pred.view(-1,3) # batch*3
+        delta_rot_pred = compute_rotation_matrix_from_ortho6d(delta_rot_6d_pred, args.use_cpu) # batch*3*3
     
-    return kptof_error, mask_error
+        # loss computation
+        loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
+        loss_r = criterion_rmse(delta_rot_pred, delta_rot)
+       
+        xyz_error.append(loss_t.item())
+        rot_error.append(loss_r.item())
+      
+    xyz_error = sum(xyz_error) / len(xyz_error)
+    rot_error = sum(rot_error) / len(rot_error)
+
+    return xyz_error, rot_error
 
 def main(args):
     def log_string(str):
@@ -127,7 +123,7 @@ def main(args):
     timestr = str(datetime.datetime.now().strftime('%Y-%m-%d_%H-%M'))
     exp_dir = Path('./log/')
     exp_dir.mkdir(exist_ok=True)
-    exp_dir = exp_dir.joinpath('kpt_dir')
+    exp_dir = exp_dir.joinpath('offset')
     exp_dir.mkdir(exist_ok=True)
     if args.log_dir is None:
         exp_dir = exp_dir.joinpath(timestr)
@@ -168,7 +164,7 @@ def main(args):
     model = importlib.import_module(args.model)
     shutil.copy('./models/%s.py' % args.model, str(exp_dir))
     shutil.copy('models/pointnet2_utils.py', str(exp_dir))
-    shutil.copy('./train_pointnet2_kpt_dir.py', str(exp_dir))
+    shutil.copy('./train_pointnet2_offset.py', str(exp_dir))
 
     network = model.get_model()
     criterion_rmse = RMSELoss()
@@ -206,13 +202,17 @@ def main(args):
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.7)
     global_epoch = 0
     global_step = 0
-    best_kptof_error = 99.9
-    best_mask_error = 99.9
+    best_rot_error = 99.9
+    best_xyz_error = 99.9
 
     '''TRANING'''
     logger.info('Start training...')
     for epoch in range(start_epoch, args.epoch):
         log_string('Epoch %d (%d/%s):' % (global_epoch + 1, epoch + 1, args.epoch))
+        train_rot_error = []
+        train_xyz_error = []
+        train_heatmap_error = []
+        train_step_size_error = []
         train_kptof_error = []
         train_mask_error = []
         network = network.train()
@@ -223,46 +223,50 @@ def main(args):
             points =  data[parameter.pcd_key].numpy()
             points = torch.Tensor(points)
             points = points.transpose(2, 1)
-            heatmap_target = data[parameter.heatmap_key]
-            kpt_of_gt = data[parameter.kpt_of_key]
- 
+            delta_rot = data[parameter.delta_rot_key]
+            delta_xyz = data[parameter.delta_xyz_key]
+            delta_xyz *= 100
             if not args.use_cpu:
                 points = points.cuda()
-                kpt_of_gt = kpt_of_gt.cuda()
-                heatmap_target = heatmap_target.cuda()
-                
-            kpt_of_pred, confidence = network(points)
+                delta_rot = delta_rot.cuda()
+                delta_xyz = delta_xyz.cuda()
+
+            delta_xyz_pred, delta_rot_6d_pred = network(points)
+            delta_xyz_pred.view(-1,3) # batch*3
+            delta_rot_pred = compute_rotation_matrix_from_ortho6d(delta_rot_6d_pred, args.use_cpu) # batch*3*3
+    
             # loss computation
-            loss_kptof = criterion_kptof(kpt_of_pred, kpt_of_gt).sum()
-            loss_mask = criterion_rmse(confidence, heatmap_target)
-            loss = loss_kptof + loss_mask
+            loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
+            loss_r = criterion_rmse(delta_rot_pred, delta_rot)
+            loss = loss_t + loss_r
             loss.backward()
             optimizer.step()
             global_step += 1
-          
-            train_kptof_error.append(loss_kptof.item())
-            train_mask_error.append(loss_mask.item())
             
-        train_kptof_error = sum(train_kptof_error) / len(train_kptof_error)
-        train_mask_error = sum(train_mask_error) / len(train_mask_error)
-        log_string('Train Keypoint Offset Error: %f' % train_kptof_error)
-        log_string('Train Mask Error: %f' % train_mask_error)
+            train_xyz_error.append(loss_t.item())
+            train_rot_error.append(loss_r.item())
+            
+        train_xyz_error = sum(train_xyz_error) / len(train_xyz_error)
+        train_rot_error = sum(train_rot_error) / len(train_rot_error)
+
+        log_string('Train Rotation Error: %f' % train_rot_error)    
+        log_string('Train Translation Error: %f' % train_xyz_error)
         with torch.no_grad():
-            kptof_error, mask_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof)
-            log_string('Test Keypoint offset Error: %f, Mask Error: %f' % (kptof_error, mask_error))
-            log_string('Best Keypoint offset Error: %f, Mask Error: %f' % (best_kptof_error, best_mask_error))
-            
-            if (kptof_error + mask_error) < (best_kptof_error + best_mask_error):
-                best_kptof_error = kptof_error
-                best_mask_error = mask_error
+            xyz_error, rot_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof)
+            log_string('Translation Error: %f, Rotation Error: %f' % (xyz_error, rot_error))
+            log_string('Best Translation Error: %f, Rotation Error: %f' % (best_xyz_error, best_rot_error))
+
+            if (xyz_error + rot_error) < (best_xyz_error + best_rot_error):
+                best_xyz_error = xyz_error
+                best_rot_error = rot_error
                 best_epoch = epoch + 1
                 logger.info('Save model...')
                 savepath = str(checkpoints_dir) + '/best_model_e_' + str(best_epoch) + '.pth'
                 log_string('Saving at %s' % savepath)
                 state = {
                     'epoch': best_epoch,
-                    'kptof_error': kptof_error,
-                    'mask_error': mask_error,
+                    'xyz_error': xyz_error,
+                    'rot_error': rot_error,
                     'model_state_dict': network.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                 }
