@@ -232,7 +232,7 @@ class SupervisedKeypointDataset(data.Dataset):
             patch_width=self._network_in_patch_width, patch_height=self._network_in_patch_height,
             bbox_scale=self._config.bbox_scale, on_boundary=entry.on_boundary,
             scale=scale, rot_rad=rot_rad)
-
+        warped_rgb = cv2.resize(warped_rgb, (64,64))
         # Transform the keypoint
         pixelxy_depth, validity = self._get_transformed_keypoint(
             bbox2patch, entry,
@@ -271,6 +271,7 @@ class SupervisedKeypointDataset(data.Dataset):
                 patch_width=self._network_in_patch_width, patch_height=self._network_in_patch_height,
                 bbox_scale=self._config.bbox_scale, on_boundary=entry.on_boundary,
                 scale=scale, rot_rad=rot_rad)
+            warped_depth = cv2.resize(warped_depth, (64,64))
             processed_entry.cropped_depth = warped_depth
 
         # The binary mask

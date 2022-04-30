@@ -6,6 +6,8 @@ References:
     Available at: https://arxiv.org/pdf/1509.06113.pdf
     [2]: https://github.com/tensorflow/tensorflow/issues/6271
 """
+#import os
+#os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -63,6 +65,19 @@ class SpatialSoftArgmax(nn.Module):
 class DSAE_Encoder(nn.Module):
     def __init__(self, in_channels, out_channels, temperature=None, normalise=False):
         super().__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels[0], 5, 2)
+        self.conv1_bn = nn.BatchNorm2d(out_channels[0])
+        self.conv2 = nn.Conv2d(out_channels[0], out_channels[1], 3, 1)
+        self.conv2_bn = nn.BatchNorm2d(out_channels[1])
+        self.conv3 = nn.Conv2d(out_channels[1], out_channels[2], 3, 2)
+        self.conv3_bn = nn.BatchNorm2d(out_channels[2])
+        self.conv4 = nn.Conv2d(out_channels[2], out_channels[3], 3, 1)
+        self.conv4_bn = nn.BatchNorm2d(out_channels[3])
+        self.conv5 = nn.Conv2d(out_channels[3], out_channels[4], 3, 1)
+        self.conv5_bn = nn.BatchNorm2d(out_channels[4])
+        self.spatial_soft_argmax = SpatialSoftArgmax(temperature=temperature, normalise=normalise)
+        
+        '''# for 256x256 self.encoder = DSAE_Encoder(in_channels=3, out_channels=(64, 128, 256, 128, 16), normalise=False)
         self.conv1 = nn.Conv2d(in_channels, out_channels[0], 5, 2, 2)
         self.conv1_bn = nn.BatchNorm2d(out_channels[0])
         self.conv2 = nn.Conv2d(out_channels[0], out_channels[1], 3, 1, 1)
@@ -74,6 +89,7 @@ class DSAE_Encoder(nn.Module):
         self.conv5 = nn.Conv2d(out_channels[3], out_channels[4], 3, 1, 1)
         self.conv5_bn = nn.BatchNorm2d(out_channels[4])
         self.spatial_soft_argmax = SpatialSoftArgmax(temperature=temperature, normalise=normalise)
+        '''
 
     def forward(self, x):
         x = F.relu(self.conv1_bn(self.conv1(x)))
@@ -94,6 +110,18 @@ class DSAE_Encoder(nn.Module):
 class DSAE_Decoder(nn.Module):
     def __init__(self, in_channels, out_channels, normalise=True):
         super().__init__()
+        self.conv1 = nn.ConvTranspose2d(in_channels, out_channels[0], 5, 1, 2)
+        self.conv1_bn = nn.BatchNorm2d(out_channels[0])
+        self.conv2 = nn.ConvTranspose2d(out_channels[0], out_channels[1], 3, 1, 1)
+        self.conv2_bn = nn.BatchNorm2d(out_channels[1])
+        self.conv3 = nn.ConvTranspose2d(out_channels[1], out_channels[2], 3, 1, 1)
+        self.conv3_bn = nn.BatchNorm2d(out_channels[2])
+        self.conv4 = nn.ConvTranspose2d(out_channels[2], out_channels[3], 3, 1, 1)
+        self.conv4_bn = nn.BatchNorm2d(out_channels[3])
+        self.conv5 = nn.ConvTranspose2d(out_channels[3], 1, 3, 1, 1)
+        self.sigmoid = nn.Sigmoid()
+        
+        ''' for 256x256  self.decoder = DSAE_Decoder(in_channels=16, out_channels=(128, 64, 64, 32))
         self.conv1 = nn.ConvTranspose2d(in_channels, out_channels[0], 5, 2, 2, 1)
         self.conv1_bn = nn.BatchNorm2d(out_channels[0])
         self.conv2 = nn.ConvTranspose2d(out_channels[0], out_channels[1], 3, 1, 1)
@@ -104,6 +132,7 @@ class DSAE_Decoder(nn.Module):
         self.conv4_bn = nn.BatchNorm2d(out_channels[3])
         self.conv5 = nn.ConvTranspose2d(out_channels[3], 1, 3, 1, 1)
         self.sigmoid = nn.Sigmoid()
+        '''
     
     def generate_laplace_heatmap(self, kpts, scale=0.05, w=64, h=64):
         # kpts: (B x 16 X 2)
@@ -137,11 +166,17 @@ class DSAE_Decoder(nn.Module):
         cv2.imwrite('heatmap.jpg', tmp*255)
         '''
         heatmap = self.generate_laplace_heatmap(kpts)
+        #print(heatmap.shape)
         x = F.relu(self.conv1_bn(self.conv1(heatmap)))
+        #print('ConvTranpose1:', x.shape)
         x = F.relu(self.conv2_bn(self.conv2(x)))
+        #print('ConvTranpose2:', x.shape)
         x = F.relu(self.conv3_bn(self.conv3(x)))
+        #print('ConvTranpose3:', x.shape)
         x = F.relu(self.conv4_bn(self.conv4(x)))
+        #print('ConvTranpose4:', x.shape)
         depth_pred = self.sigmoid(self.conv5(x))
+        #print('ConvTranpose5:', depth_pred.shape)
         
         return depth_pred
 
@@ -211,12 +246,11 @@ class ActionNet(nn.Module):
 
 if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    rgb = torch.randn(4, 3, 256, 256).to(device)
-    depth = torch.randn(1, 3, 256, 256).to(device)
+    rgb = torch.randn(4, 3, 64, 64).to(device)
 
     dsae_model = DSAE().to(device)
     
-    recon, xyz, rot = dsae_model(rgb)
-    print(recon.shape)
-    print(xyz.shape)
-    print(rot.shape)
+    xyz, rot, recon = dsae_model(rgb)
+    print('depth:', recon.shape)
+    print('xyz:', xyz.shape)
+    print('rot:', rot.shape)

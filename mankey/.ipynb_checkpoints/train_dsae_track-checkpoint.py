@@ -5,7 +5,7 @@ Date: Nov 2019
 
 import os
 '''HYPER PARAMETER'''
-os.environ["CUDA_VISIBLE_DEVICES"] = '5'
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 import sys
 import torch
 from torch.utils.data import DataLoader
@@ -230,13 +230,13 @@ def main(args):
             delta_rot_euler = data[parameter.delta_rot_euler_key][0]
             rgb = rgbd[:,:3,:,:]
             depth = rgbd[:,3:,:]
+            print(depth.shape)
             if not args.use_cpu:
                 delta_rot = delta_rot.cuda()
                 delta_xyz = delta_xyz.cuda()
                 delta_rot_euler = delta_rot_euler.cuda()
                 rgb = rgb.cuda()
                 depth = depth.cuda()
-
             delta_xyz_pred , delta_rot_euler_pred, depth_pred = network(rgb)
             # loss computation
             #loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
