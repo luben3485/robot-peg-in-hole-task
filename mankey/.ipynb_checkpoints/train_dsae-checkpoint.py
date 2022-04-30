@@ -5,7 +5,7 @@ Date: Nov 2019
 
 import os
 '''HYPER PARAMETER'''
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 import sys
 import torch
 from torch.utils.data import DataLoader
@@ -22,8 +22,8 @@ from pathlib import Path
 from tqdm import tqdm
 
 import config.parameter as parameter
-from dataproc.xyzrot_pcd_supervised_db import SpartanSupvervisedKeypointDBConfig, SpartanSupervisedKeypointDatabase
-from dataproc.supervised_keypoint_pcd_loader import SupervisedKeypointDatasetConfig, SupervisedKeypointDataset
+from dataproc.xyzrot_supervised_db import SpartanSupvervisedKeypointDBConfig, SpartanSupervisedKeypointDatabase
+from dataproc.supervised_keypoint_loader import SupervisedKeypointDatasetConfig, SupervisedKeypointDataset
 
 from network.loss import RMSELoss
 from models.utils import compute_rotation_matrix_from_ortho6d
@@ -39,14 +39,14 @@ def parse_args():
     parser.add_argument('--use_cpu', action='store_true', default=False, help='use cpu mode')
     #parser.add_argument('--gpu', type=str, default='0', help='specify gpu device')
     parser.add_argument('--batch_size', type=int, default=32, help='batch size in training')
-    parser.add_argument('--model', default='cnn_dsae', help='model name [default: pointnet_cls]')
+    parser.add_argument('--model', default='dsae', help='model name [default: pointnet_cls]')
     parser.add_argument('--out_channel', default=9, type=int)
     parser.add_argument('--epoch', default=100, type=int, help='number of epoch in training')
     parser.add_argument('--learning_rate', default=0.001, type=float, help='learning rate in training')
     parser.add_argument('--num_point', type=int, default=1024, help='Point Number')
     parser.add_argument('--optimizer', type=str, default='Adam', help='optimizer for training')
     parser.add_argument('--log_dir', type=str, default=None, help='experiment root')
-    parser.add_argument('--decay_rate', type=float, default=1e-4, help='decay rate')
+    parser.add_argument('--decay_rate', type=float, default=1e-6, help='decay rate')
     parser.add_argument('--use_normals', action='store_true', default=False, help='use normals')
     parser.add_argument('--process_data', action='store_true', default=False, help='save data offline')
     parser.add_argument('--use_uniform_sample', action='store_true', default=False, help='use uniform sampiling')
@@ -58,9 +58,9 @@ def construct_dataset(is_train: bool) -> (torch.utils.data.Dataset, SupervisedKe
     db_config.keypoint_yaml_name = 'peg_in_hole.yaml'
     db_config.pdc_data_root = '/tmp2/r09944001/data/pdc'
     if is_train:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220322_fine_notilt.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220430_fine_notilt.txt'
     else:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220322_fine_notilt.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220430_fine_notilt.txt'
     database = SpartanSupervisedKeypointDatabase(db_config)
 
     # Construct torch dataset
@@ -89,29 +89,23 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
 
     for j, data in tqdm(enumerate(loader), total=len(loader)):
         rgbd = data[parameter.rgbd_image_key]
-        rgb_pair = data[parameter.rgb_pair_key]
-        depth_pair = data[parameter.depth_pair_key]
         delta_rot = data[parameter.delta_rot_key]
         delta_xyz = data[parameter.delta_xyz_key]
-        delta_xyz *= 100
-
+        delta_rot_euler = data[parameter.delta_rot_euler_key]
+        rgb = rgbd[:,:3,:,:]
+        depth = rgbd[:,3:,:]
         if not args.use_cpu:
             delta_rot = delta_rot.cuda()
             delta_xyz = delta_xyz.cuda()
-            rgbd = rgbd.cuda()
-            rgb_pair = rgb_pair.cuda()
-            depth_pair = depth_pair.cuda()
-        rgb = rgbd[:,:3,:,:]
-        depth = rgbd[:,3:,:]
-        # rgb (B,3,H,W) rgb_pair (B,6,H,W)
-        # depth (B,1,H,W) depth_pair (B,2,H,W)
-        delta_xyz_pred, delta_rot_pred, depth_pred = network(rgb_pair)
-        
+            delta_rot_euler = delta_rot_euler.cuda()
+            rgb = rgb.cuda()
+            depth = depth.cuda()
+        delta_xyz_pred , delta_rot_euler_pred, depth_pred = network(rgb)
         # loss computation
         #loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
         loss_t =  criterion_rmse(delta_xyz_pred, delta_xyz) + criterion_mae(delta_xyz_pred, delta_xyz)
-        loss_r = criterion_rmse(delta_rot_pred, delta_rot)
-        loss_recon = criterion_rmse(depth_pred, depth_pair)
+        loss_r = criterion_rmse(delta_rot_euler_pred, delta_rot_euler)
+        loss_recon = criterion_rmse(depth_pred, depth)
         
         xyz_error.append(loss_t.item())
         rot_error.append(loss_r.item())
@@ -175,7 +169,7 @@ def main(args):
     shutil.copy('models/pointnet2_utils.py', str(exp_dir))
     shutil.copy('./train_dsae.py', str(exp_dir))
 
-    network = model.get_model()
+    network = model.DSAE()
     criterion_rmse = RMSELoss()
     criterion_cos = torch.nn.CosineSimilarity(dim=1)
     criterion_bce = torch.nn.BCELoss()
@@ -230,30 +224,25 @@ def main(args):
         for batch_id, data in tqdm(enumerate(trainDataLoader, 0), total=len(trainDataLoader), smoothing=0.9):
             optimizer.zero_grad()
             rgbd = data[parameter.rgbd_image_key]
-            rgb_pair = data[parameter.rgb_pair_key]
-            depth_pair = data[parameter.depth_pair_key]
             delta_rot = data[parameter.delta_rot_key]
             delta_xyz = data[parameter.delta_xyz_key]
-            delta_xyz *= 100
-             
+            delta_rot_euler = data[parameter.delta_rot_euler_key]
+            rgb = rgbd[:,:3,:,:]
+            depth = rgbd[:,3:,:]
             if not args.use_cpu:
                 delta_rot = delta_rot.cuda()
                 delta_xyz = delta_xyz.cuda()
-                rgbd = rgbd.cuda()
-                rgb_pair = rgb_pair.cuda()
-                depth_pair = depth_pair.cuda()
-            rgb = rgbd[:,:3,:,:]
-            depth = rgbd[:,3:,:]
-            # rgb (B,3,H,W) rgb_pair (B,6,H,W)
-            # depth (B,1,H,W) depth_pair (B,2,H,W)
-            delta_xyz_pred, delta_rot_pred, depth_pred = network(rgb_pair)
+                delta_rot_euler = delta_rot_euler.cuda()
+                rgb = rgb.cuda()
+                depth = depth.cuda()
+            delta_xyz_pred , delta_rot_euler_pred, depth_pred = network(rgb)
             # loss computation
             #loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
             loss_t =  criterion_rmse(delta_xyz_pred, delta_xyz) + criterion_mae(delta_xyz_pred, delta_xyz)
-            loss_r = criterion_rmse(delta_rot_pred, delta_rot)
-            loss_recon = criterion_rmse(depth_pred, depth_pair)
-            #loss = loss_t + loss_r + loss_recon
+            loss_r = criterion_rmse(delta_rot_euler_pred, delta_rot_euler)
+            loss_recon = criterion_rmse(depth_pred, depth)
             loss = loss_t + loss_recon
+            #loss = loss_t + loss_r + loss_recon
             loss.backward()
             optimizer.step()
             global_step += 1
@@ -266,9 +255,7 @@ def main(args):
         train_rot_error = sum(train_rot_error) / len(train_rot_error)
         train_recon_error = sum(train_recon_error) / len(train_recon_error)
       
-        log_string('Train Translation Error: %f' % train_xyz_error)
-        log_string('Train Rotation Error: %f' % train_rot_error)
-        log_string('Train Reconstruction Error: %f' % train_recon_error)
+        log_string('Train Translation Error: %f, Rotation Error: %f, Reconstruction Error: %f' % (train_xyz_error,  train_rot_error, train_recon_error))
         with torch.no_grad():
             xyz_error, rot_error, recon_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof, criterion_mae)
         

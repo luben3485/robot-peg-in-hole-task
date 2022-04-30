@@ -27,7 +27,7 @@ class get_model(nn.Module):
 class dsae_encoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(6, 64, 5, 2, 2)
+        self.conv1 = nn.Conv2d(3, 64, 5, 2, 2)
         self.conv1_bn = nn.BatchNorm2d(64)
         self.conv2 = nn.Conv2d(64, 128, 3, 1, 1)
         self.conv2_bn = nn.BatchNorm2d(128)
@@ -60,7 +60,7 @@ class dsae_decoder(nn.Module):
         self.conv3_bn = nn.BatchNorm2d(64)
         self.conv4 = nn.ConvTranspose2d(64, 32, 3, 1, 1)
         self.conv4_bn = nn.BatchNorm2d(32)
-        self.conv5 = nn.ConvTranspose2d(32, 2, 3, 1, 1)
+        self.conv5 = nn.ConvTranspose2d(32, 1, 3, 1, 1)
         self.sigmoid = nn.Sigmoid()
     
     def generate_laplace_heatmap(self, kpts, scale=0.05, w=64, h=64):
@@ -170,7 +170,7 @@ class action_net(nn.Module):
         self.bn1 = nn.BatchNorm1d(128)
         self.fc2 = nn.Linear(128, 128)
         self.bn2 = nn.BatchNorm1d(128)
-        self.fc3 = nn.Linear(128, 9)
+        self.fc3 = nn.Linear(128, 6)
 
     def forward(self, kpts):
         b = kpts.shape[0]
@@ -178,11 +178,11 @@ class action_net(nn.Module):
         x = F.leaky_relu(self.bn1(self.fc1(kpts)))
         x = F.leaky_relu(self.bn2(self.fc2(x)))
         x = self.fc3(x)
-        xyz_pred = x[:, :3]
-        rot_pred = x[:, 3:9]
-        rot_pred = compute_rotation_matrix_from_ortho6d(rot_pred, use_cpu=self.use_cpu)
+    
+        delta_xyz_pred = x[:, :3]
+        delta_rot_euler_pred = x[:, 3:] 
         
-        return xyz_pred, rot_pred
+        return delta_xyz_pred, delta_rot_euler_pred
 '''
         
 class get_model(nn.Module):

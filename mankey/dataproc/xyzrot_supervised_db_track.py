@@ -143,8 +143,7 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         for track_key in keypoint_yaml_map.keys():
             entry_list = []
             track_map = keypoint_yaml_map[track_key]
-            for image_key in track_map.keys():
-                image_map = track_map[image_key]
+            for image_map in track_map:
                 image_entry = self._get_image_entry(image_map, scene_root)
                 if image_entry is not None and self._check_image_entry(image_entry):
                     entry_list.append(image_entry)
@@ -155,13 +154,13 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
     def _get_image_entry(self, image_map, scene_root: str) -> SupervisedKeypointDBEntry:
         entry = SupervisedKeypointDBEntry()
         # The path for rgb image
-        rgb_name = image_map['rgb_image_filename']
+        rgb_name = image_map['rgb_image_filename'][0]
         rgb_path = os.path.join(scene_root, 'processed/images/' + rgb_name)
         assert os.path.exists(rgb_path)
         entry.rgb_image_path = rgb_path
 
         # The path for depth image
-        depth_name = image_map['depth_image_filename']
+        depth_name = image_map['depth_image_filename'][0]
         depth_path = os.path.join(scene_root, 'processed/images/' + depth_name)
         assert os.path.exists(depth_path) # Spartan must have depth image
         entry.depth_image_path = depth_path
@@ -175,10 +174,14 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         '''
         # xyzrot
         entry.delta_rotation_matrix = np.array(image_map['delta_rotation_matrix']).reshape((3,3))
-        entry.delta_translation = np.array(image_map['delta_translation']).reshape((3,))
+        entry.delta_rot_euler = np.array(image_map['r_euler']).reshape((3,))
+        delta_translation = np.array(image_map['delta_translation']).reshape((3,))
+        normal_delta_translation = np.zeros((3,))
+        normal_delta_translation[0] = (delta_translation[0] - (-0.00091)) / (0.001217 - (-0.00091))
+        normal_delta_translation[1] = (delta_translation[1] - (-0.00091)) / (0.001217 - (-0.00091))
+        normal_delta_translation[2] = (delta_translation[2] - (-0.00143507)) / (-0.00000226636629 - (-0.00143507))
+        entry.delta_translation =  normal_delta_translation
         entry.gripper_pose = np.array(image_map['gripper_pose']).reshape((4,4))
-        step_size_value = max(min(image_map['step_size'], 1.0), 0.0)
-        entry.step_size = np.array([step_size_value]).reshape((1,))
 
         # The camera pose in world
         camera2world_map = image_map['camera_to_world']

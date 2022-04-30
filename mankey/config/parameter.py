@@ -24,9 +24,9 @@ delta_rot_euler_key = 'delta_rot_euler'
 bbox_scale = 1.25
 
 # The normalization parameter
-depth_image_clip = 2000  # Clip the depth image further than 1500 mm
-depth_image_mean = 650   # origin 580
-depth_image_scale = 256  # scaled_depth = (raw_depth - depth_image_mean) / depth_image_scale
+depth_image_clip = 1500  # Clip the depth image further than 1500 mm
+depth_image_mean = 0   # origin 580    
+depth_image_scale = 320  # scaled_depth = (raw_depth - depth_image_mean) / depth_image_scale  min:0 max:320
 
 # The averaged RGB image
 rgb_mean = [0.485, 0.456, 0.406]

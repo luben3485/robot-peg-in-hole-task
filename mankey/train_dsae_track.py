@@ -5,7 +5,7 @@ Date: Nov 2019
 
 import os
 '''HYPER PARAMETER'''
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+os.environ["CUDA_VISIBLE_DEVICES"] = '5'
 import sys
 import torch
 from torch.utils.data import DataLoader
@@ -22,8 +22,8 @@ from pathlib import Path
 from tqdm import tqdm
 
 import config.parameter as parameter
-from dataproc.xyzrot_supervised_db import SpartanSupvervisedKeypointDBConfig, SpartanSupervisedKeypointDatabase
-from dataproc.supervised_keypoint_loader import SupervisedKeypointDatasetConfig, SupervisedKeypointDataset
+from dataproc.xyzrot_supervised_db_track import SpartanSupvervisedKeypointDBConfig, SpartanSupervisedKeypointDatabase
+from dataproc.supervised_keypoint_loader_track import SupervisedKeypointDatasetConfig, SupervisedKeypointDataset
 
 from network.loss import RMSELoss
 from models.utils import compute_rotation_matrix_from_ortho6d
@@ -37,8 +37,7 @@ def parse_args():
     '''PARAMETERS'''
     parser = argparse.ArgumentParser('training')
     parser.add_argument('--use_cpu', action='store_true', default=False, help='use cpu mode')
-    #parser.add_argument('--gpu', type=str, default='0', help='specify gpu device')
-    parser.add_argument('--batch_size', type=int, default=32, help='batch size in training')
+    parser.add_argument('--batch_size', type=int, default=1, help='batch size in training')
     parser.add_argument('--model', default='dsae', help='model name [default: pointnet_cls]')
     parser.add_argument('--out_channel', default=9, type=int)
     parser.add_argument('--epoch', default=100, type=int, help='number of epoch in training')
@@ -58,9 +57,9 @@ def construct_dataset(is_train: bool) -> (torch.utils.data.Dataset, SupervisedKe
     db_config.keypoint_yaml_name = 'peg_in_hole.yaml'
     db_config.pdc_data_root = '/tmp2/r09944001/data/pdc'
     if is_train:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220430_fine_notilt.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220428_fine_notilt.txt'
     else:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220430_fine_notilt.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220428_fine_notilt.txt'
     database = SpartanSupervisedKeypointDatabase(db_config)
 
     # Construct torch dataset
@@ -88,18 +87,20 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
     network = model.eval()
 
     for j, data in tqdm(enumerate(loader), total=len(loader)):
-        rgbd = data[parameter.rgbd_image_key]
-        delta_rot = data[parameter.delta_rot_key]
-        delta_xyz = data[parameter.delta_xyz_key]
-        delta_rot_euler = data[parameter.delta_rot_euler_key]
+        rgbd = data[parameter.rgbd_image_key][0]
+        delta_rot = data[parameter.delta_rot_key][0]
+        delta_xyz = data[parameter.delta_xyz_key][0]
+        delta_rot_euler = data[parameter.delta_rot_euler_key][0]
         rgb = rgbd[:,:3,:,:]
         depth = rgbd[:,3:,:]
+
         if not args.use_cpu:
             delta_rot = delta_rot.cuda()
             delta_xyz = delta_xyz.cuda()
             delta_rot_euler = delta_rot_euler.cuda()
             rgb = rgb.cuda()
             depth = depth.cuda()
+
         delta_xyz_pred , delta_rot_euler_pred, depth_pred = network(rgb)
         # loss computation
         #loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
@@ -167,7 +168,7 @@ def main(args):
     model = importlib.import_module(args.model)
     shutil.copy('./models/%s.py' % args.model, str(exp_dir))
     shutil.copy('models/pointnet2_utils.py', str(exp_dir))
-    shutil.copy('./train_dsae.py', str(exp_dir))
+    shutil.copy('./train_dsae_track.py', str(exp_dir))
 
     network = model.DSAE()
     criterion_rmse = RMSELoss()
@@ -223,10 +224,10 @@ def main(args):
         scheduler.step()
         for batch_id, data in tqdm(enumerate(trainDataLoader, 0), total=len(trainDataLoader), smoothing=0.9):
             optimizer.zero_grad()
-            rgbd = data[parameter.rgbd_image_key]
-            delta_rot = data[parameter.delta_rot_key]
-            delta_xyz = data[parameter.delta_xyz_key]
-            delta_rot_euler = data[parameter.delta_rot_euler_key]
+            rgbd = data[parameter.rgbd_image_key][0]
+            delta_rot = data[parameter.delta_rot_key][0]
+            delta_xyz = data[parameter.delta_xyz_key][0]
+            delta_rot_euler = data[parameter.delta_rot_euler_key][0]
             rgb = rgbd[:,:3,:,:]
             depth = rgbd[:,3:,:]
             if not args.use_cpu:

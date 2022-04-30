@@ -3,7 +3,6 @@ import numpy as np
 import random
 import torch.utils.data as data
 import mankey.config.parameter as parameter
-sys.path.append('/tmp2/r09944001/robot-peg-in-hole-task')
 from mankey.utils.imgproc import PixelCoord, get_guassian_heatmap, get_bbox_cropped_image_path
 from mankey.dataproc.supervised_keypoint_db import SupervisedKeypointDBEntry, SupervisedImageKeypointDatabase
 import attr
@@ -31,10 +30,10 @@ class SupervisedKeypointDatasetConfig:
     rgb_mean = parameter.rgb_mean
 
     # The augmentation parameter
-    aug_scale_factor = 0.1
+    aug_scale_factor = 0 #0.1
     aug_rot_rad_factor = 10.0 * np.pi / 180.0
-    aug_rot_rate = 0.6  # The probability of do rotation augmentation
-    aug_color_factor = 0.2
+    aug_rot_rate = 0 #0.6  # The probability of do rotation augmentation
+    aug_color_factor = 0 #0.2
 
     # Check whether the value is valid
     def sanity_check(self) -> bool:
@@ -69,9 +68,9 @@ class ProcessedEntry:
 
     # xyzrot
     delta_rotation_matrix = np.ndarray(shape=[])
+    delta_rot_euler = np.ndarray(shape=[])
     delta_translation = np.ndarray(shape=[])
     gripper_pose = np.ndarray(shape=[])
-    step_size = np.ndarray(shape=[])
 
     # Some method to check the existance of entry
     @property
@@ -162,10 +161,10 @@ class SupervisedKeypointDataset(data.Dataset):
             parameter.keypoint_validity_key: validity.astype(np.float32),
             parameter.target_heatmap_key: processed_entry.target_heatmap.astype(np.float32),
             parameter.delta_rot_key: processed_entry.delta_rotation_matrix.astype(np.float32),
-            parameter.delta_rot_cls_key: processed_entry.delta_rot_cls.astype(np.int),
+            parameter.delta_rot_euler_key: processed_entry.delta_rot_euler.astype(np.float32),
             parameter.delta_xyz_key: processed_entry.delta_translation.astype(np.float32),
             parameter.gripper_pose_key: processed_entry.gripper_pose.astype(np.float32),
-            parameter.step_size_key: processed_entry.step_size.astype(np.float32)
+
         }
         #return stacked_tensor, normalized_keypoint_xy_depth.astype(np.float32), \
         #       validity.astype(np.float32), processed_entry.target_heatmap.astype(np.float32)
@@ -215,9 +214,8 @@ class SupervisedKeypointDataset(data.Dataset):
         # xyzrot
         processed_entry.delta_translation = entry.delta_translation
         processed_entry.delta_rotation_matrix = entry.delta_rotation_matrix
+        processed_entry.delta_rot_euler = entry.delta_rot_euler
         processed_entry.gripper_pose = entry.gripper_pose
-        processed_entry.step_size = entry.step_size
-        processed_entry.delta_rot_cls = entry.delta_rot_cls
         
         # Compute the guassian heatmap
         n_keypoint = pixelxy_depth.shape[1]

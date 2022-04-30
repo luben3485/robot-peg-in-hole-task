@@ -30,10 +30,10 @@ class SupervisedKeypointDatasetConfig:
     rgb_mean = parameter.rgb_mean
 
     # The augmentation parameter
-    aug_scale_factor = 0.1
+    aug_scale_factor = 0 #0.1
     aug_rot_rad_factor = 10.0 * np.pi / 180.0
-    aug_rot_rate = 0.6  # The probability of do rotation augmentation
-    aug_color_factor = 0.2
+    aug_rot_rate = 0 #0.6  # The probability of do rotation augmentation
+    aug_color_factor = 0 #0.2
 
     # Check whether the value is valid
     def sanity_check(self) -> bool:
@@ -68,9 +68,9 @@ class ProcessedEntry:
 
     # xyzrot
     delta_rotation_matrix = np.ndarray(shape=[])
+    delta_rot_euler = np.ndarray(shape=[])
     delta_translation = np.ndarray(shape=[])
     gripper_pose = np.ndarray(shape=[])
-    step_size = np.ndarray(shape=[])
 
     # Some method to check the existance of entry
     @property
@@ -123,9 +123,9 @@ class SupervisedKeypointDataset(data.Dataset):
         validity_track = []
         target_heatmap_track = []
         delta_rotation_matrix_track = []
+        delta_rot_euler_track = []
         delta_translation_track = []
         gripper_pose_track = []
-        step_size_track = []
         
         # Do normalization on images
         from mankey.utils.imgproc import rgb_image_normalize, depth_image_normalize
@@ -174,18 +174,19 @@ class SupervisedKeypointDataset(data.Dataset):
             validity_track.append(validity)
             target_heatmap_track.append(processed_entry.target_heatmap)
             delta_rotation_matrix_track.append(processed_entry.delta_rotation_matrix)
+            delta_rot_euler_track.append(processed_entry.delta_rot_euler)
             delta_translation_track.append(processed_entry.delta_translation)
             gripper_pose_track.append(processed_entry.gripper_pose)
-            step_size_track.append(processed_entry.step_size)
         
         stacked_tensor_track = np.array(stacked_tensor_track).astype(np.float32)
         normalized_keypoint_xy_depth_track = np.array(normalized_keypoint_xy_depth_track).astype(np.float32)
         validity_track = np.array(validity_track).astype(np.float32)
         target_heatmap_track = np.array(target_heatmap_track).astype(np.float32)
         delta_rotation_matrix_track = np.array(delta_rotation_matrix_track).astype(np.float32)
+        delta_rot_euler_track = np.array(delta_rot_euler_track).astype(np.float32)
         delta_translation_track = np.array(delta_translation_track).astype(np.float32)
         gripper_pose_track = np.array(gripper_pose_track).astype(np.float32)
-        step_size_track = np.array(step_size_track).astype(np.float32)
+
 
         return {
             parameter.rgbd_image_key: stacked_tensor_track,
@@ -193,9 +194,9 @@ class SupervisedKeypointDataset(data.Dataset):
             parameter.keypoint_validity_key: validity_track,
             parameter.target_heatmap_key: target_heatmap_track,
             parameter.delta_rot_key: delta_rotation_matrix_track,
+            parameter.delta_rot_euler_key: delta_rot_euler_track,
             parameter.delta_xyz_key: delta_translation_track,
             parameter.gripper_pose_key: gripper_pose_track,
-            parameter.step_size_key: step_size_track
         }
         #return stacked_tensor, normalized_keypoint_xy_depth.astype(np.float32), \
         #       validity.astype(np.float32), processed_entry.target_heatmap.astype(np.float32)
@@ -245,8 +246,8 @@ class SupervisedKeypointDataset(data.Dataset):
         # xyzrot
         processed_entry.delta_translation = entry.delta_translation
         processed_entry.delta_rotation_matrix = entry.delta_rotation_matrix
+        processed_entry.delta_rot_euler = entry.delta_rot_euler
         processed_entry.gripper_pose = entry.gripper_pose
-        processed_entry.step_size = entry.step_size
 
         # Compute the guassian heatmap
         n_keypoint = pixelxy_depth.shape[1]
