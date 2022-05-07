@@ -65,7 +65,7 @@ class SpatialSoftArgmax(nn.Module):
 class DSAE_Encoder(nn.Module):
     def __init__(self, in_channels, out_channels, temperature=None, normalise=False):
         super().__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels[0], 5, 2)
+        self.conv1 = nn.Conv2d(in_channels, out_channels[0], 7, 2)
         self.conv1_bn = nn.BatchNorm2d(out_channels[0])
         self.conv2 = nn.Conv2d(out_channels[0], out_channels[1], 3, 1)
         self.conv2_bn = nn.BatchNorm2d(out_channels[1])
@@ -93,10 +93,15 @@ class DSAE_Encoder(nn.Module):
 
     def forward(self, x):
         x = F.relu(self.conv1_bn(self.conv1(x)))
+        #print(x.shape)
         x = F.relu(self.conv2_bn(self.conv2(x)))
+        #print(x.shape)
         x = F.relu(self.conv3_bn(self.conv3(x)))
+        #print(x.shape)
         x = F.relu(self.conv4_bn(self.conv4(x)))
+        #print(x.shape)
         x = F.relu(self.conv5_bn(self.conv5(x)))
+        #print(x.shape)
         out = self.spatial_soft_argmax(x)
         '''
         out_conv1 = self.activ(self.batch_norm1(self.conv1(x)))
@@ -105,34 +110,44 @@ class DSAE_Encoder(nn.Module):
         out = self.spatial_soft_argmax(out_conv3)
         '''
         return out
-
-    
+'''
 class DSAE_Decoder(nn.Module):
     def __init__(self, in_channels, out_channels, normalise=True):
         super().__init__()
-        self.conv1 = nn.ConvTranspose2d(in_channels, out_channels[0], 5, 1, 2)
+        self.conv1 = nn.Conv2d(in_channels, out_channels[0], 5, 1, 2)
         self.conv1_bn = nn.BatchNorm2d(out_channels[0])
-        self.conv2 = nn.ConvTranspose2d(out_channels[0], out_channels[1], 3, 1, 1)
+        self.conv2 = nn.Conv2d(out_channels[0], out_channels[1], 3, 1, 1)
         self.conv2_bn = nn.BatchNorm2d(out_channels[1])
-        self.conv3 = nn.ConvTranspose2d(out_channels[1], out_channels[2], 3, 1, 1)
+        self.conv3 = nn.Conv2d(out_channels[1], out_channels[2], 3, 1, 1)
         self.conv3_bn = nn.BatchNorm2d(out_channels[2])
-        self.conv4 = nn.ConvTranspose2d(out_channels[2], out_channels[3], 3, 1, 1)
+        self.conv4 = nn.Conv2d(out_channels[2], out_channels[3], 3, 1, 1)
         self.conv4_bn = nn.BatchNorm2d(out_channels[3])
-        self.conv5 = nn.ConvTranspose2d(out_channels[3], 1, 3, 1, 1)
+        self.conv5 = nn.Conv2d(out_channels[3], 1, 3, 1, 1)
         self.sigmoid = nn.Sigmoid()
         
-        ''' for 256x256  self.decoder = DSAE_Decoder(in_channels=16, out_channels=(128, 64, 64, 32))
-        self.conv1 = nn.ConvTranspose2d(in_channels, out_channels[0], 5, 2, 2, 1)
-        self.conv1_bn = nn.BatchNorm2d(out_channels[0])
-        self.conv2 = nn.ConvTranspose2d(out_channels[0], out_channels[1], 3, 1, 1)
-        self.conv2_bn = nn.BatchNorm2d(out_channels[1])
-        self.conv3 = nn.ConvTranspose2d(out_channels[1], out_channels[2], 3, 2, 1, 1)
-        self.conv3_bn = nn.BatchNorm2d(out_channels[2])
-        self.conv4 = nn.ConvTranspose2d(out_channels[2], out_channels[3], 3, 1, 1)
-        self.conv4_bn = nn.BatchNorm2d(out_channels[3])
-        self.conv5 = nn.ConvTranspose2d(out_channels[3], 1, 3, 1, 1)
-        self.sigmoid = nn.Sigmoid()
-        '''
+        #for 64x64
+        #self.conv1 = nn.ConvTranspose2d(in_channels, out_channels[0], 5, 1, 2)
+        #self.conv1_bn = nn.BatchNorm2d(out_channels[0])
+        #self.conv2 = nn.ConvTranspose2d(out_channels[0], out_channels[1], 3, 1, 1)
+        #self.conv2_bn = nn.BatchNorm2d(out_channels[1])
+        #self.conv3 = nn.ConvTranspose2d(out_channels[1], out_channels[2], 3, 1, 1)
+        #self.conv3_bn = nn.BatchNorm2d(out_channels[2])
+        #self.conv4 = nn.ConvTranspose2d(out_channels[2], out_channels[3], 3, 1, 1)
+        #self.conv4_bn = nn.BatchNorm2d(out_channels[3])
+        #self.conv5 = nn.ConvTranspose2d(out_channels[3], 1, 3, 1, 1)
+        #self.sigmoid = nn.Sigmoid()
+        
+        #for 256x256  self.decoder = DSAE_Decoder(in_channels=16, out_channels=(128, 64, 64, 32))
+        #self.conv1 = nn.ConvTranspose2d(in_channels, out_channels[0], 5, 2, 2, 1)
+        #self.conv1_bn = nn.BatchNorm2d(out_channels[0])
+        #self.conv2 = nn.ConvTranspose2d(out_channels[0], out_channels[1], 3, 1, 1)
+        #self.conv2_bn = nn.BatchNorm2d(out_channels[1])
+        #self.conv3 = nn.ConvTranspose2d(out_channels[1], out_channels[2], 3, 2, 1, 1)
+        #self.conv3_bn = nn.BatchNorm2d(out_channels[2])
+        #self.conv4 = nn.ConvTranspose2d(out_channels[2], out_channels[3], 3, 1, 1)
+        #self.conv4_bn = nn.BatchNorm2d(out_channels[3])
+        #self.conv5 = nn.ConvTranspose2d(out_channels[3], 1, 3, 1, 1)
+        #self.sigmoid = nn.Sigmoid()
     
     def generate_laplace_heatmap(self, kpts, scale=0.05, w=64, h=64):
         # kpts: (B x 16 X 2)
@@ -158,13 +173,13 @@ class DSAE_Decoder(nn.Module):
         return heatmap.view(b, c, h, w)
     
     def forward(self, kpts):
-        ''' test for heatmap (kpt range [0-64])
-        kpts[0, 0,:] =  torch.tensor([32, 32]).cuda()
-        heatmap = self.generate_laplace_heatmap(kpts)
-        tmp = heatmap.permute(0, 2, 3, 1)[0, :,:,:1].cpu().detach().numpy()
-        print(tmp.shape)
-        cv2.imwrite('heatmap.jpg', tmp*255)
-        '''
+        #test for heatmap (kpt range [0-64])
+        #kpts[0, 0,:] =  torch.tensor([32, 32]).cuda()
+        #heatmap = self.generate_laplace_heatmap(kpts)
+        #tmp = heatmap.permute(0, 2, 3, 1)[0, :,:,:1].cpu().detach().numpy()
+        #print(tmp.shape)
+        #cv2.imwrite('heatmap.jpg', tmp*255)
+        
         heatmap = self.generate_laplace_heatmap(kpts)
         #print(heatmap.shape)
         x = F.relu(self.conv1_bn(self.conv1(heatmap)))
@@ -179,20 +194,52 @@ class DSAE_Decoder(nn.Module):
         #print('ConvTranpose5:', depth_pred.shape)
         
         return depth_pred
+'''
+
+class DSAE_Decoder(nn.Module):
+    def __init__(self, image_output_size, latent_dimension, normalise=True):
+        """
+        Creates a Deep Spatial Autoencoder decoder
+        :param image_output_size: (height, width) of the output, grayscale image
+        :param latent_dimension: dimension of the low-dimensional encoded features.
+        :param normalise: True if output in range [-1, 1], False for range [0, 1]
+        """
+        super().__init__()
+        self.height, self.width = image_output_size
+        self.latent_dimension = latent_dimension
+        self.decoder = nn.Linear(in_features=latent_dimension, out_features=self.height * self.width)
+        self.activ = nn.Tanh() if normalise else nn.Sigmoid()
+
+    def forward(self, x):
+        out = self.activ(self.decoder(x))
+        out = out.view(-1, 1, self.height, self.width)
+        return out
 
 class DSAE(nn.Module):
     def __init__(self):
         super().__init__()
         self.encoder = DSAE_Encoder(in_channels=3, out_channels=(64, 128, 256, 128, 16), normalise=False)
-        self.decoder = DSAE_Decoder(in_channels=16, out_channels=(128, 64, 64, 32))
+        self.decoder = DSAE_Decoder(image_output_size=(64, 64), latent_dimension=32, normalise=False)
+        #self.decoder = DSAE_Decoder(in_channels=16, out_channels=(128, 64, 64, 32))
         self.actionnet = ActionNet()
         
     def forward(self, x):
         kpts = self.encoder(x)
+        b, c, _2 = kpts.size()
+        kpts = kpts.view(b, c * 2)
         # kpts (b, n, 2)
         recon = self.decoder(kpts)
         delta_xyz_pred, delta_rot_euler_pred = self.actionnet(kpts)
         return delta_xyz_pred, delta_rot_euler_pred, recon
+    
+    def forward_inference(self, x):
+        kpts = self.encoder(x)
+        b, c, _2 = kpts.size()
+        kpts = kpts.view(b, c * 2)
+        # kpts (b, n, 2)
+        recon = self.decoder(kpts)
+        delta_xyz_pred, delta_rot_euler_pred = self.actionnet(kpts)
+        return delta_xyz_pred, delta_rot_euler_pred, recon, kpts.view(b, c, _2)
 
 
 class DSAE_Loss(object):

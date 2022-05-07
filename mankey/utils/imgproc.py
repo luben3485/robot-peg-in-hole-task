@@ -281,10 +281,13 @@ def get_bbox_cropped_image_raw(
         scale=scale, rot_rad=rot_rad)
 
     # Do transformation
+    '''
     warped_img = cv2.warpAffine(
         cv_img, bbox2patch,
         (int(patch_width), int(patch_height)),
         flags=cv2.INTER_LINEAR)
+    '''
+    warped_img = cv_img # 20220501
     return warped_img, bbox2patch
 
 
@@ -449,6 +452,7 @@ def depth_image_normalize(
     tensor -= float(depth_mean)
     normalizer = 1.0 / float(depth_scale)
     tensor = tensor * normalizer
+    tensor = np.clip(tensor, 0 ,1) # 20220501
     return tensor
 
 

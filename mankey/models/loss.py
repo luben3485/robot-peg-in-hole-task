@@ -12,7 +12,7 @@ def of_l1_loss(kpt_of_pred, kpt_of_gt, normalize=True, reduce=False):
     in_loss = abs_diff
 
     if normalize:
-        in_loss = torch.sum(in_loss.view(bs, -1), 1) / (n_pts * c)
+        in_loss = torch.sum(in_loss.reshape(bs, -1), 1) / (n_pts * c)
         
     if reduce:
         torch.mean(in_loss)

@@ -5,19 +5,19 @@ Date: Nov 2019
 
 import os
 '''HYPER PARAMETER'''
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+os.environ["CUDA_VISIBLE_DEVICES"] = '6'
 import sys
 import torch
 from torch.utils.data import DataLoader
 import numpy as np
-
+import cv2
 import datetime
 import logging
 import provider
 import importlib
 import shutil
 import argparse
-
+import copy
 from pathlib import Path
 from tqdm import tqdm
 
@@ -41,7 +41,7 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=32, help='batch size in training')
     parser.add_argument('--model', default='dsae', help='model name [default: pointnet_cls]')
     parser.add_argument('--out_channel', default=9, type=int)
-    parser.add_argument('--epoch', default=100, type=int, help='number of epoch in training')
+    parser.add_argument('--epoch', default=200, type=int, help='number of epoch in training')
     parser.add_argument('--learning_rate', default=0.001, type=float, help='learning rate in training')
     parser.add_argument('--num_point', type=int, default=1024, help='Point Number')
     parser.add_argument('--optimizer', type=str, default='Adam', help='optimizer for training')
@@ -58,9 +58,9 @@ def construct_dataset(is_train: bool) -> (torch.utils.data.Dataset, SupervisedKe
     db_config.keypoint_yaml_name = 'peg_in_hole.yaml'
     db_config.pdc_data_root = '/tmp2/r09944001/data/pdc'
     if is_train:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220430_fine_notilt_test.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220502_fine_notilt.txt'
     else:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220430_fine_notilt_test.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220502_fine_notilt.txt'
     database = SpartanSupervisedKeypointDatabase(db_config)
 
     # Construct torch dataset
@@ -80,7 +80,7 @@ def inplace_relu(m):
         m.inplace=True
         
 
-def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof, criterion_mae):
+def test(model, loader, out_channel, criterion_mse, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof, criterion_mae):
    
     xyz_error = []
     rot_error = []
@@ -105,7 +105,7 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
         #loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
         loss_t =  criterion_rmse(delta_xyz_pred, delta_xyz) + criterion_mae(delta_xyz_pred, delta_xyz)
         loss_r = criterion_rmse(delta_rot_euler_pred, delta_rot_euler)
-        loss_recon = criterion_rmse(depth_pred, depth)
+        loss_recon = criterion_mse(depth_pred, depth)
         
         xyz_error.append(loss_t.item())
         rot_error.append(loss_r.item())
@@ -170,6 +170,7 @@ def main(args):
     shutil.copy('./train_dsae.py', str(exp_dir))
 
     network = model.DSAE()
+    criterion_mse = torch.nn.MSELoss(reduction="sum")
     criterion_rmse = RMSELoss()
     criterion_cos = torch.nn.CosineSimilarity(dim=1)
     criterion_bce = torch.nn.BCELoss()
@@ -179,6 +180,7 @@ def main(args):
 
     if not args.use_cpu:
         network = network.cuda()
+        criterion_mse = criterion_mse.cuda()
         criterion_rmse = criterion_rmse.cuda()
         criterion_cos = criterion_cos.cuda()
         criterion_bce = criterion_bce.cuda()
@@ -192,7 +194,13 @@ def main(args):
     except:
         log_string('No existing model, starting training from scratch...')
         start_epoch = 0
-
+        from torchvision.models.googlenet import model_urls
+        from torch.utils import model_zoo
+        googlenet = model_zoo.load_url(model_urls['googlenet'])
+        model_dict = network.state_dict()
+        model_dict['encoder.conv1.weight'] = googlenet['conv1.conv.weight']
+        network.load_state_dict(model_dict)
+        
     if args.optimizer == 'Adam':
         optimizer = torch.optim.Adam(
             network.parameters(),
@@ -204,12 +212,12 @@ def main(args):
     else:
         optimizer = torch.optim.SGD(network.parameters(), lr=0.01, momentum=0.9)
 
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=1.0)
     global_epoch = 0
     global_step = 0
-    best_rot_error = 99.9
-    best_xyz_error = 99.9
-    best_recon_error = 99.9
+    best_rot_error = 99999.9
+    best_xyz_error = 99999.9
+    best_recon_error = 99999.9
 
     '''TRANING'''
     logger.info('Start training...')
@@ -219,6 +227,7 @@ def main(args):
         train_rot_error = []
         train_recon_error = []
         network = network.train()
+        #print(network.encoder.conv1.weight.shape) #(64, 3, 5, 5)
 
         scheduler.step()
         for batch_id, data in tqdm(enumerate(trainDataLoader, 0), total=len(trainDataLoader), smoothing=0.9):
@@ -229,7 +238,19 @@ def main(args):
             delta_rot_euler = data[parameter.delta_rot_euler_key]
             rgb = rgbd[:,:3,:,:]
             depth = rgbd[:,3:,:,:]
-
+            '''
+            depth_draw = copy.deepcopy(depth[0].permute(1,2,0).numpy())
+            cv2.imwrite('train_depth.png', depth_draw*255)
+            rgb_draw = copy.deepcopy(rgb[0].permute(1,2,0).numpy())
+            cv2.imwrite('train_rgb.png', rgb_draw*255)
+            assert False
+            '''
+            cnt_rgb = np.count_nonzero(np.isnan(rgb))
+            cnt_depth = np.count_nonzero(np.isnan(depth))
+            if cnt_rgb or cnt_depth != 0:
+                print('rgb:', cnt_rgb)
+                print('depth:', cnt_depth)
+                assert False
             if not args.use_cpu:
                 delta_rot = delta_rot.cuda()
                 delta_xyz = delta_xyz.cuda()
@@ -241,8 +262,9 @@ def main(args):
             #loss_t = (1-criterion_cos(delta_xyz_pred, delta_xyz)).mean() + criterion_rmse(delta_xyz_pred, delta_xyz)
             loss_t =  criterion_rmse(delta_xyz_pred, delta_xyz) + criterion_mae(delta_xyz_pred, delta_xyz)
             loss_r = criterion_rmse(delta_rot_euler_pred, delta_rot_euler)
-            loss_recon = criterion_rmse(depth_pred, depth)
-            loss = loss_t + loss_recon
+            loss_recon = criterion_mse(depth_pred, depth)
+            loss = loss_recon
+            #loss = loss_t + loss_recon
             #loss = loss_t + loss_r + loss_recon
             loss.backward()
             optimizer.step()
@@ -258,13 +280,14 @@ def main(args):
       
         log_string('Train Translation Error: %f, Rotation Error: %f, Reconstruction Error: %f' % (train_xyz_error,  train_rot_error, train_recon_error))
         with torch.no_grad():
-            xyz_error, rot_error, recon_error = test(network.eval(), validDataLoader, out_channel, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof, criterion_mae)
+            xyz_error, rot_error, recon_error = test(network.eval(), validDataLoader, out_channel, criterion_mse, criterion_rmse, criterion_cos, criterion_bce, criterion_kptof, criterion_mae)
         
             log_string('Test Translation Error: %f, Rotation Error: %f, Reconstruction Error: %f' % (xyz_error, rot_error, recon_error))
             log_string('Best Translation Error: %f, Rotation Error: %f, Reconstruction Error: %f' % (best_xyz_error, best_rot_error, best_recon_error))
 
             #if (xyz_error + rot_error + recon_error) < (best_xyz_error + best_rot_error+ best_recon_error):
-            if (xyz_error + recon_error) < (best_xyz_error + best_recon_error):
+            #if (xyz_error + recon_error) < (best_xyz_error + best_recon_error):
+            if (recon_error) < (best_recon_error):
                 best_xyz_error = xyz_error
                 best_rot_error = rot_error
                 best_recon_error = recon_error

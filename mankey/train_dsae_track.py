@@ -5,7 +5,7 @@ Date: Nov 2019
 
 import os
 '''HYPER PARAMETER'''
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+os.environ["CUDA_VISIBLE_DEVICES"] = '6'
 import sys
 import torch
 from torch.utils.data import DataLoader
@@ -57,9 +57,9 @@ def construct_dataset(is_train: bool) -> (torch.utils.data.Dataset, SupervisedKe
     db_config.keypoint_yaml_name = 'peg_in_hole.yaml'
     db_config.pdc_data_root = '/tmp2/r09944001/data/pdc'
     if is_train:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220428_fine_notilt_test.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220428_fine_notilt.txt'
     else:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220428_fine_notilt_test.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220428_fine_notilt.txt'
     database = SpartanSupervisedKeypointDatabase(db_config)
 
     # Construct torch dataset
@@ -230,7 +230,6 @@ def main(args):
             delta_rot_euler = data[parameter.delta_rot_euler_key][0]
             rgb = rgbd[:,:3,:,:]
             depth = rgbd[:,3:,:]
-            print(depth.shape)
             if not args.use_cpu:
                 delta_rot = delta_rot.cuda()
                 delta_xyz = delta_xyz.cuda()

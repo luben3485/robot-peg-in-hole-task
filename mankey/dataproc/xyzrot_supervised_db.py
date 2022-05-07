@@ -155,7 +155,7 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         #rgb_name = image_map['rgb_image_filename']
         # multi-view pic, the main pic is chosen now
         rgb_name = image_map['rgb_image_filename'][0]
-        rgb_path = os.path.join(scene_root, 'processed/images/' + rgb_name)
+        rgb_path = os.path.join(scene_root, 'processed/color/' + rgb_name)
         assert os.path.exists(rgb_path)
         entry.rgb_image_path = rgb_path
 
@@ -163,7 +163,7 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         #depth_name = image_map['depth_image_filename']
         # multi-view pic, the main pic is chosen now
         depth_name = image_map['depth_image_filename'][0]
-        depth_path = os.path.join(scene_root, 'processed/images/' + depth_name)
+        depth_path = os.path.join(scene_root, 'processed/depth/' + depth_name)
         assert os.path.exists(depth_path) # Spartan must have depth image
         entry.depth_image_path = depth_path
         
@@ -182,6 +182,7 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         normal_delta_translation[0] = (delta_translation[0] - (-0.00625)) / (0.00625 - (-0.00625))
         normal_delta_translation[1] = (delta_translation[1] - (-0.00625)) / (0.00625 - (-0.00625))
         normal_delta_translation[2] = (delta_translation[2] - (-0.00299982)) / (0 - (-0.00299982))
+        normal_delta_translation = np.clip(normal_delta_translation, 0, 1)
         entry.delta_translation =  normal_delta_translation
         entry.gripper_pose = np.array(image_map['gripper_pose']).reshape((4,4))
     
