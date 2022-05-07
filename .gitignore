@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 
+kovis/result
 pcd_benchmark/
 /mover/runs/
 /mover/ckpnt*
