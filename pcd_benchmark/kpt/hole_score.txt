@@ -1,0 +1,2 @@
+circle hole success rate : 51.4% (257/500)
+rectangle hole success rate : 70.19999999999999% (351/500)

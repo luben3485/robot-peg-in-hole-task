@@ -5,12 +5,14 @@ Date: Nov 2019
 
 import os
 import cv2
+import copy
 import yaml
 '''HYPER PARAMETER'''
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 import sys
 sys.path.append('/home/luben/robot-peg-in-hole-task')
 import torch
+import torchvision.transforms as transforms
 import open3d as o3d
 from torch.utils.data import DataLoader
 import numpy as np
@@ -27,6 +29,7 @@ from tqdm import tqdm
 import mankey.provider as provider
 import mankey.config.parameter as parameter
 from mankey.models.utils import compute_rotation_matrix_from_ortho6d
+from scipy.spatial.transform import Rotation as R
 
 focal_length = 309.019
 principal = 128
@@ -35,12 +38,12 @@ intrinsic_matrix = np.array([[focal_length, 0, principal],
                              [0, focal_length, principal],
                              [0, 0, 1]], dtype=np.float64)
 
-class Mover(object):
+class DSAEMover(object):
     def __init__(self, model_path='kpts/2022-02-??_??-??', model_name='pointnet2_kpts', checkpoint_name='best_model_e_?.pth', use_cpu=False, out_channel=9):
         '''MODEL LOADING'''
         exp_dir = os.path.join('/home/luben/robot-peg-in-hole-task/mankey/log', model_path)
         model = importlib.import_module('mankey.models.' + model_name)
-        self.network = model.get_model()
+        self.network = model.DSAE()
         self.network.apply(self.inplace_relu)
         self.use_cpu = use_cpu
         if not self.use_cpu:
@@ -175,20 +178,34 @@ class Mover(object):
 
         return delta_trans_pred, delta_rot_pred
     '''
-    def inference_multiple_camera(self, rgb_list):
-        rgb_pair = np.concatenate((rgb_list[0], rgb_list[1]), axis=2)
+    def inference_multiple_camera(self, stacked_rgb):
         self.network = self.network.eval()
         with torch.no_grad():
-            rgb_pair = torch.tensor(rgb_pair, dtype=torch.float32)
-            rgb_pair = torch.unsqueeze(rgb_pair, 0)
-            rgb_pair = rgb_pair.permute(0, 3, 1, 2)
+            #normalize
+            rgb_mean = np.array([(0.485, 0.456, 0.406)])
+            rgb = copy.deepcopy(stacked_rgb)
+            rgb /= 255.0
+            rgb -= rgb_mean
+            rgb = torch.tensor(rgb, dtype=torch.float32)
+            rgb = torch.unsqueeze(rgb, 0)
+            rgb = rgb.permute(0, 3, 1, 2)
             if not self.use_cpu:
-                rgb_pair = rgb_pair.cuda()
-            delta_xyz_pred, delta_rot_pred, depth_pred = self.network(rgb_pair)
-        delta_xyz_pred = delta_xyz_pred[0].cpu().numpy()
-        delta_rot_pred = delta_rot_pred[0].cpu().numpy()
+                rgb = rgb.cuda()
+            delta_xyz_pred, delta_rot_euler_pred, depth_pred, kpts = self.network.forward_inference(rgb)
 
-        return delta_xyz_pred, delta_rot_pred
+        kpts = kpts[0].cpu().numpy()
+        depth_pred = depth_pred[0].permute(1, 2, 0).cpu().numpy()
+        delta_xyz_pred = delta_xyz_pred[0].cpu().numpy()
+        delta_rot_euler_pred = delta_rot_euler_pred[0].cpu().numpy()
+        delta_xyz_pred[0] = delta_xyz_pred[0] * (0.00625 - (-0.00625)) + (-0.00625)
+        delta_xyz_pred[1] = delta_xyz_pred[1] * (0.00625 - (-0.00625)) + (-0.00625)
+        delta_xyz_pred[2] = max(delta_xyz_pred[2] * (0 - (-0.00299982)) + (-0.00299982), -0.00299982)
+
+        #delta_rot_euler_pred = delta_rot_euler_pred * 5
+        r = R.from_euler('zyx', delta_rot_euler_pred, degrees=True)
+        delta_rot_pred = r.as_matrix()
+
+        return delta_xyz_pred, delta_rot_pred, depth_pred, kpts
 
     def test_network(self, points):
         # input param: points Tensor(1, C, N)
@@ -206,40 +223,90 @@ class Mover(object):
             return mean_kpt_pred, mean_kpt_x_pred, mean_kpt_y_pred, rot_mat_pred, confidence
 
 if __name__ == '__main__':
-    model_path = 'dsae/2022-03-18_19-15'
-    mover = Mover(model_path=model_path, model_name='cnn_dsae',
-                               checkpoint_name='best_model_e_44.pth', use_cpu=False, out_channel=9)
-    data_root = '/home/luben/data/pdc/logs_proto/2022-02-26-test/fine_insertion_square_2022-02-26-test/processed'
-    '''
-    pcd_seg_heatmap_kpt_folder_path = os.path.join(data_root, 'pcd_seg_heatmap_3kpt')
+
+    model_path = 'dsae/2022-05-03_22-20'
+    mover = DSAEMover(model_path=model_path, model_name='dsae',
+                               checkpoint_name='best_model_e_177.pth', use_cpu=False, out_channel=9)
+    data_root = '/home/luben/data/pdc/logs_proto/fine_insertion_square_7x12x12_2022-05-02-notilt/processed'
     visualize_kpt_path = os.path.join(data_root, 'visualize_kpt')
-    visualize_heatmap_path = os.path.join(data_root, 'visualize_heatmap')
+    visualize_depth_path = os.path.join(data_root, 'visualize_depth')
     # create folder
     cwd = os.getcwd()
     os.chdir(data_root)
     if not os.path.exists('visualize_kpt'):
         os.makedirs('visualize_kpt')
-    if not os.path.exists('visualize_heatmap'):
-        os.makedirs('visualize_heatmap')
+    if not os.path.exists('visualize_depth'):
+        os.makedirs('visualize_depth')
     os.chdir(cwd)
-    '''
 
-    with open(os.path.join(data_root, 'peg_in_hole.yaml'), 'r') as f_r:
+    with open(os.path.join(data_root, 'peg_in_hole_small.yaml'), 'r') as f_r:
         data = yaml.load(f_r)
 
     for key, value in tqdm(data.items()):
         rgb_name_list = data[key]['rgb_image_filename']
-        delta_xyz = data[key]['delta_translation']
-        delta_rot = data[key]['delta_rotation_matrix']
-        rgb_list = []
-        for rgb_name in rgb_name_list:
-            rgb_list.append(cv2.imread(os.path.join(data_root, 'images', rgb_name), cv2.IMREAD_COLOR))
-        delta_xyz_pred, delta_rot_pred = mover.inference_multiple_camera(rgb_list)
-        print('prediction:')
-        print(delta_xyz_pred)
-        print(delta_rot_pred)
-        print('ground truth:')
-        print(delta_xyz)
-        print(delta_rot)
+        '''
+        if key==1:
+            depth_name_list = data[key]['depth_image_filename']
+            depth = cv2.imread(os.path.join(data_root, 'images', depth_name_list[0]), cv2.IMREAD_ANYDEPTH)
+            depth = np.clip((depth/320), 0, 1)
+            depth*=255
+            cv2.imwrite(os.path.join(data_root, str(key) + '_depth.png'), depth)
+            assert False
+        '''
+        rgb_name = rgb_name_list[0]
+        rgb = cv2.imread(os.path.join(data_root, 'images', rgb_name), cv2.IMREAD_COLOR)
+        rgb = rgb[:,:,::-1].astype(np.float32)
+        delta_xyz_pred, delta_rot_pred, depth_pred, kpts = mover.inference_multiple_camera(rgb)
+        assert rgb.shape == (256, 256, 3)
+        depth_draw = copy.deepcopy(depth_pred)
+        depth_draw = cv2.resize(depth_draw, (64, 64))*255
+        depth_draw = depth_draw.astype(int)
+        rgb_draw = copy.deepcopy(rgb)
+        rgb_draw = cv2.resize(rgb_draw, (64, 64)).astype(int)
+        rgb_draw = rgb_draw[:, :, ::-1]
+        for kpt in kpts:
+            x = int(kpt[0])
+            y = int(kpt[1])
+            rgb_draw[x, y] = [255, 0, 0]
+        # plt.imshow(depth_draw)
+        # plt.imshow(rgb_draw)
+        # plt.show()
+        cv2.imwrite(os.path.join(visualize_kpt_path, str(key)+'.png'), rgb_draw)
+        cv2.imwrite(os.path.join(visualize_depth_path, str(key)+'.png'), depth_draw)
+
+    '''
+    total_mean = []
+    total_max = []
+    total_min = []
+    t_xyz = []
+    for key, value in tqdm(data.items()):
+        depth_mean = []
+        depth_max = []
+        depth_min = []
+        xyz = []
+        for i in range(len(value)):
+            rgb_name_list = data[key][i]['rgb_image_filename']
+            depth_name_list = data[key][i]['depth_image_filename']
+            delta_xyz = data[key][i]['delta_translation']
+            delta_rot = data[key][i]['delta_rotation_matrix']
+
+            depth = cv2.imread(os.path.join(data_root, 'images', depth_name_list[0]), cv2.IMREAD_ANYDEPTH)
+            depth_mean.append(np.mean(depth))
+            depth_max.append(np.max(depth))
+            depth_min.append(np.min(depth))
+            xyz.append(delta_xyz)
+        xyz = np.array(xyz)
+        xyz = np.min(xyz, 0)
+        t_xyz.append(xyz)
+        total_mean.append(sum(depth_mean)/len(depth_mean))
+        total_max.append(max(depth_max))
+        total_min.append(max(depth_min))
+    t_xyz = np.array(t_xyz)
+    print(np.min(t_xyz, 0))
+    print(sum(total_mean)/len(total_mean))
+    print(max(total_max))
+    print(min(total_min))
+    '''
+
 
 

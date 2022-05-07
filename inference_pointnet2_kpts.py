@@ -4,6 +4,7 @@ Date: Nov 2019
 """
 
 import os
+import math
 import yaml
 '''HYPER PARAMETER'''
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
@@ -34,7 +35,20 @@ intrinsic_matrix = np.array([[focal_length, 0, principal],
                              [0, focal_length, principal],
                              [0, 0, 1]], dtype=np.float64)
 
-class Mover(object):
+def jitter_point_cloud(data, sigma=0.01, clip=0.05):
+    """ Randomly jitter points. jittering is per point.
+        Input:
+          Nx3 array, original batch of point clouds
+        Return:
+          Nx3 array, jittered batch of point clouds
+    """
+    N, C = data.shape
+    assert(clip > 0)
+    jittered_data = np.clip(sigma * np.random.randn(N, C), -1*clip, clip)
+    jittered_data += data
+    return jittered_data
+
+class CoarseMover(object):
     def __init__(self, model_path='kpts/2022-02-??_??-??', model_name='pointnet2_kpts', checkpoint_name='best_model_e_?.pth', use_cpu=False, out_channel=9):
         '''MODEL LOADING'''
         exp_dir = os.path.join('/home/luben/robot-peg-in-hole-task/mankey/log', model_path)
@@ -102,7 +116,7 @@ class Mover(object):
         return points, centroid, m  # points:(1, C, N)
 
 
-    def process_raw_mutliple_camera(self, depth_mm_list, camera2world_list):
+    def process_raw_mutliple_camera(self, depth_mm_list, camera2world_list, add_noise=False):
         xyz_in_world_list = []
         for idx, depth_mm in enumerate(depth_mm_list):
             depth = depth_mm / 1000  # unit: mm to m
@@ -124,6 +138,9 @@ class Mover(object):
             xyz_in_world_list.append(down_xyz_in_world)
         concat_xyz_in_world = np.array(xyz_in_world_list)
         concat_xyz_in_world = concat_xyz_in_world.reshape(-1, 3)
+        if add_noise==True:
+            concat_xyz_in_world = jitter_point_cloud(concat_xyz_in_world, sigma=1, clip=3)
+
         # normalize the pcd
         centroid = np.mean(concat_xyz_in_world, axis=0)
         points = concat_xyz_in_world - centroid
@@ -174,7 +191,7 @@ class Mover(object):
 
         return delta_trans_pred, delta_rot_pred
 
-    def test_network(self, points):
+    def inference_from_pcd(self, points, centroid, m, use_offset=False):
         # input param: points Tensor(1, C, N)
         self.network = self.network.eval()
         with torch.no_grad():
@@ -186,14 +203,29 @@ class Mover(object):
             mean_kpt_y_pred = mean_kpt_y_pred[0].cpu().numpy()
             rot_mat_pred = rot_mat_pred[0].cpu().numpy()
             confidence = confidence[0].cpu().numpy()
-
-            return mean_kpt_pred, mean_kpt_x_pred, mean_kpt_y_pred, rot_mat_pred, confidence
+            trans_of_pred = trans_of_pred[0].cpu().numpy()
+            real_kpt_pred = (mean_kpt_pred * m) + centroid  # unit:mm
+            real_kpt_pred = real_kpt_pred.reshape(1, 3)
+            real_kpt_x_pred = (mean_kpt_x_pred * m) + centroid  # unit:mm
+            real_kpt_x_pred = real_kpt_x_pred.reshape(1, 3)
+            dir_pred = real_kpt_pred - real_kpt_x_pred
+            dir_pred = dir_pred / np.linalg.norm(dir_pred)
+            # offset means translation offset now, and rotation offset is not used.
+            if not use_offset:
+                return real_kpt_pred, dir_pred, rot_mat_pred, confidence
+            if use_offset:
+                real_trans_of_pred =  trans_of_pred * m # unit: mm
+                real_kpt_pred += real_trans_of_pred
+                return real_kpt_pred, dir_pred, rot_mat_pred, confidence
 
 if __name__ == '__main__':
-    model_path = 'kpts/2022-03-15_18-52'
-    mover = Mover(model_path=model_path, model_name='pointnet2_kpts',
-                               checkpoint_name='best_model_e_27.pth', use_cpu=False, out_channel=9)
-    data_root = '/home/luben/data/pdc/logs_proto/2022-02-26-test/fine_insertion_square_2022-02-26-test/processed'
+    add_noise = True
+    use_offset = False
+    model_path = 'kpts/2022-04-25_07-26'
+    mover = CoarseMover(model_path=model_path, model_name='pointnet2_kpts',
+                               checkpoint_name='best_model_e_60.pth', use_cpu=False, out_channel=9)
+    #data_root = '/home/luben/data/pdc/logs_proto/2022-02-26-test/fine_insertion_square_2022-02-26-test/processed'
+    data_root = '/home/luben/data/pdc/logs_proto/coarse_insertion_square_2022-03-28-test/processed'
     pcd_seg_heatmap_kpt_folder_path = os.path.join(data_root, 'pcd_seg_heatmap_3kpt')
     visualize_kpt_path = os.path.join(data_root, 'visualize_kpt')
     visualize_heatmap_path = os.path.join(data_root, 'visualize_heatmap')
@@ -209,20 +241,28 @@ if __name__ == '__main__':
     with open(os.path.join(data_root, 'peg_in_hole.yaml'), 'r') as f_r:
         data = yaml.load(f_r)
     dist_list = []
+    angle_list = []
     for key, value in tqdm(data.items()):
         pcd_filename = data[key]['pcd']
         pcd = np.load(os.path.join(pcd_seg_heatmap_kpt_folder_path, pcd_filename))
         pcd = pcd[:, :3]
         centroid = np.array(data[key]['pcd_centroid'])
         m = data[key]['pcd_mean']
-        real_pcd = (pcd * m) + centroid
+        if add_noise == True:
+            # add noise on pcd
+            real_pcd = pcd * m + centroid
+            noise_real_pcd = jitter_point_cloud(real_pcd, sigma=1, clip=5)
+            # normalize the pcd again
+            centroid = np.mean(noise_real_pcd, axis=0)
+            pcd = noise_real_pcd - centroid
+            m = np.max(np.sqrt(np.sum(pcd ** 2, axis=1)))
+            pcd = pcd / m
+
+        origin_real_pcd = (pcd * m) + centroid
         pcd = np.expand_dims(pcd, axis=0)
         pcd = torch.Tensor(pcd)
         pcd = pcd.transpose(2, 1)
-        mean_kpt_pred, mean_kpt_x_pred, mean_kpt_y_pred, rot_mat_pred, confidence = mover.test_network(pcd)
-
-        real_kpt_pred = (mean_kpt_pred * m) + centroid # unit:mm
-        real_kpt_pred = real_kpt_pred.reshape(1, 3)
+        real_kpt_pred, dir_pred, rot_mat_pred, confidence = mover.inference_from_pcd(pcd, centroid, m, use_offset=use_offset)
         #print('hole keypoint prediction:', real_kpt_pred)
 
         # compute keypoint error
@@ -230,23 +270,29 @@ if __name__ == '__main__':
         hole_keypoint_top_pos_in_world = hole_keypoint_top_pose_in_world[:3, 3]*1000  # unit: m to mm
         dist = np.linalg.norm(real_kpt_pred - hole_keypoint_top_pos_in_world)
         dist_list.append(dist)
-
-        # visualize keypoint
+        # compute direction error(use two keypoints to calculate insertion vector)
+        dir = hole_keypoint_top_pose_in_world[:3, 0].reshape(3, 1)
+        dot_product = np.dot(dir_pred, dir)
+        angle = math.degrees(math.acos(dot_product / (np.linalg.norm(dir_pred) * np.linalg.norm(dir))))
+        angle_list.append(angle)
+        # visualize hole keypoint
         visualize_pcd = o3d.geometry.PointCloud()
-        visualize_pcd.points = o3d.utility.Vector3dVector(np.concatenate((real_pcd, real_kpt_pred), axis=0))
-        color = np.concatenate((np.repeat(np.array([[1, 1, 1]]),real_pcd.shape[0], axis=0), np.array([[1, 0, 0]])), axis=0)
+        visualize_pcd.points = o3d.utility.Vector3dVector(np.concatenate((origin_real_pcd, real_kpt_pred), axis=0))
+        color = np.concatenate((np.repeat(np.array([[1, 1, 1]]),origin_real_pcd.shape[0], axis=0), np.array([[1, 0, 0]])), axis=0)
         visualize_pcd.colors = o3d.utility.Vector3dVector(color)
         o3d.io.write_point_cloud(os.path.join(visualize_kpt_path, 'kptof_' + str(key) + '.ply'), visualize_pcd)
-        '''
-        # visualize confidence
+
+        # visualize heatmap
         visualize_pcd = o3d.geometry.PointCloud()
-        visualize_pcd.points = o3d.utility.Vector3dVector(real_pcd)
+        visualize_pcd.points = o3d.utility.Vector3dVector(origin_real_pcd)
         heatmap_color = np.repeat(confidence, 3, axis=1).reshape(-1, 3)  # n x 3
         visualize_pcd.colors = o3d.utility.Vector3dVector(heatmap_color)
         o3d.io.write_point_cloud(os.path.join(visualize_heatmap_path, 'heatmap_' + str(key) + '.ply'), visualize_pcd)
-        '''
+
     dist = sum(dist_list) / len(dist_list)
-    print('Keypoint error distance: {} (mm)'.format(dist))
+    print('Keypoint error distance: {} mm, Max:{} mm'.format(dist, max(dist_list)))
+    angle = sum(angle_list) / len(angle_list)
+    print('Angle error: {} (degrees), Max:{} mm'.format(angle, max(angle_list)))
 
 
 

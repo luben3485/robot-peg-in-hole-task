@@ -71,8 +71,8 @@ def main(args):
         data = yaml.load(f_r)
     #for key, value in data.items():
     for key, value in tqdm.tqdm(data.items()):
-        depth_image_filename_list = data[key]['depth_image_filename']
-        camera2world_list = data[key]['camera_matrix']
+        depth_image_filename_list = data[key]['depth_image_filename'][:1]
+        camera2world_list = data[key]['camera_matrix'][:1]
         xyz_in_world_list = []
         for idx, depth_image_filename in enumerate(depth_image_filename_list):
             depth_img = cv2.imread(os.path.join(image_folder_path, depth_image_filename), cv2.IMREAD_ANYDEPTH)

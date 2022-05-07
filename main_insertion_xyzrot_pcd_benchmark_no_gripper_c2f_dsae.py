@@ -1,14 +1,16 @@
 from env.single_robotic_arm import SingleRoboticArm
 import numpy as np
 import cv2
+import matplotlib.pyplot as plt
 import math
 from transforms3d.quaternions import mat2quat, quat2axangle, quat2mat, qmult
 import random
 from scipy.spatial.transform import Rotation as R
-from inference_pointnet2_dsae import Mover
+from inference_pointnet2_dsae import DSAEMover
 import os
 import sys
 import time
+import copy
 sys.path.append('/home/luben/robot-peg-in-hole-task')
 
 def quaternion_matrix(quaternion):
@@ -126,7 +128,7 @@ def predict_xyzrot_from_single_camera(cam_name, mover, rob_arm):
     return delta_rot_pred, delta_xyz_pred
 
 def predict_xyzrot_from_multiple_camera(cam_name_list, mover, rob_arm):
-    rgb_list = []
+    stacked_rgb = np.empty(shape=(256, 256, 0), dtype=np.float32)
     camera2world_list = []
     for cam_name in cam_name_list:
         cam_matrix = rob_arm.get_object_matrix(obj_name=cam_name)
@@ -137,12 +139,28 @@ def predict_xyzrot_from_multiple_camera(cam_name_list, mover, rob_arm):
         center = (w / 2, h / 2)
         M = cv2.getRotationMatrix2D(center, 180, 1.0)
         rgb = cv2.warpAffine(rgb, M, (w, h))
-        rgb_list.append(rgb)
+        stacked_rgb = np.append(stacked_rgb, rgb, axis=2)
 
-    delta_xyz_pred, delta_rot_pred = mover.inference_multiple_camera(rgb_list)
-
+    delta_xyz_pred, delta_rot_pred, depth, kpts = mover.inference_multiple_camera(stacked_rgb)
+    draw_figure(stacked_rgb, depth, kpts)
     return delta_xyz_pred, delta_rot_pred
 
+def draw_figure(rgb, depth, kpts):
+    assert rgb.shape == (256, 256, 3)
+    depth_draw = copy.deepcopy(depth)
+    depth_draw = cv2.resize(depth_draw, (64,64)) * 255
+    depth_draw = depth_draw.astype(int)
+    rgb_draw = copy.deepcopy(rgb)
+    rgb_draw = cv2.resize(rgb_draw, (64, 64)).astype(int)
+    rgb_draw = rgb_draw[:, :, ::-1]
+    for kpt in kpts:
+        x = int(kpt[0])
+        y = int(kpt[1])
+        rgb_draw[x, y] = [255, 0, 0]
+    plt.imshow(depth_draw)
+    #plt.imshow(rgb_draw)
+    plt.show()
+    #cv2.imwrite('pcd_benchmark/dsae/visualize/feature.jpg', rgb_draw)
 
 def main():
     # create folder
@@ -150,20 +168,34 @@ def main():
     if not os.path.exists(benchmark_folder):
         os.makedirs(benchmark_folder)
     f = open(os.path.join(benchmark_folder, "hole_score.txt"), "w")
-    coarse_mover = Mover(model_path='dsae/2022-03-18_19-14', model_name='cnn_dsae', checkpoint_name='best_model_e_33.pth', use_cpu=False, out_channel=9)
-    fine_mover = Mover(model_path='dsae/2022-03-18_19-15', model_name='cnn_dsae', checkpoint_name='best_model_e_44.pth', use_cpu=False, out_channel=9)
+    #coarse_mover = Mover(model_path='dsae/2022-03-18_19-14', model_name='cnn_dsae', checkpoint_name='best_model_e_33.pth', use_cpu=False, out_channel=9)
+    fine_mover = DSAEMover(model_path='dsae/2022-05-01_02-09', model_name='dsae', checkpoint_name='best_model_e_60.pth', use_cpu=False, out_channel=9)
     iter_num = 500
-    cam_name_list = ['vision_eye_left', 'vision_eye_right']
+    cam_name_list = ['vision_eye_front']
     peg_top = 'peg_dummy_top'
     peg_bottom = 'peg_dummy_bottom'
     peg_name = 'peg_in_arm'
-    hole_setting = {'square': ['square', 'hole_keypoint_top0', 'hole_keypoint_bottom0'],
-                    'small_square': ['small_square', 'hole_keypoint_top1', 'hole_keypoint_bottom1'],
-                    'circle': ['circle', 'hole_keypoint_top2', 'hole_keypoint_bottom2'],
-                    'rectangle': ['rectangle', 'hole_keypoint_top3', 'hole_keypoint_bottom3'],
-                    'triangle': ['triangle', 'hole_keypoint_top4', 'hole_keypoint_bottom4']}
+    hole_setting = {'square_7x10x10': ['square_7x10x10', 'hole_keypoint_top0', 'hole_keypoint_bottom0', 'hole_keypoint_obj_bottom0'],
+                    'square_7x11x11': ['square_7x11x11', 'hole_keypoint_top1', 'hole_keypoint_bottom1', 'hole_keypoint_obj_bottom1'],
+                    'square_7x12x12': ['square_7x12x12', 'hole_keypoint_top2', 'hole_keypoint_bottom2', 'hole_keypoint_obj_bottom2'],
+                    'square_7x13x13': ['square_7x13x13', 'hole_keypoint_top3', 'hole_keypoint_bottom3', 'hole_keypoint_obj_bottom3'],
+                    'square_7x14x14': ['square_7x14x14', 'hole_keypoint_top4', 'hole_keypoint_bottom4', 'hole_keypoint_obj_bottom4'],
+                    'rectangle_7x8x11': ['rectangle_7x8x11', 'hole_keypoint_top5', 'hole_keypoint_bottom5', 'hole_keypoint_obj_bottom5'],
+                    'rectangle_7x9x12': ['rectangle_7x9x12', 'hole_keypoint_top6', 'hole_keypoint_bottom6', 'hole_keypoint_obj_bottom6'],
+                    'rectangle_7x10x13': ['rectangle_7x10x13', 'hole_keypoint_top7', 'hole_keypoint_bottom7', 'hole_keypoint_obj_bottom7'],
+                    'rectangle_7x11x14': ['rectangle_7x11x14', 'hole_keypoint_top8', 'hole_keypoint_bottom8', 'hole_keypoint_obj_bottom8'],
+                    'rectangle_7x12x15': ['rectangle_7x12x15', 'hole_keypoint_top9', 'hole_keypoint_bottom9', 'hole_keypoint_obj_bottom9'],
+                    'circle_7x10': ['circle_7x10', 'hole_keypoint_top10', 'hole_keypoint_bottom10', 'hole_keypoint_obj_bottom10'],
+                    'circle_7x11': ['circle_7x11', 'hole_keypoint_top11', 'hole_keypoint_bottom11', 'hole_keypoint_obj_bottom11'],
+                    'circle_7x12': ['circle_7x12', 'hole_keypoint_top12', 'hole_keypoint_bottom12', 'hole_keypoint_obj_bottom12'],
+                    'circle_7x13': ['circle_7x13', 'hole_keypoint_top13', 'hole_keypoint_bottom13', 'hole_keypoint_obj_bottom13'],
+                    'circle_7x14': ['circle_7x14', 'hole_keypoint_top14', 'hole_keypoint_bottom14', 'hole_keypoint_obj_bottom14'], }
+
+    #selected_hole_list = ['square_7x10x10', 'square_7x11x11', 'square_7x12x12', 'square_7x13x13', 'square_7x14x14']
+    #selected_hole_list = ['rectangle_7x8x11', 'rectangle_7x9x12', 'rectangle_7x10x13', 'rectangle_7x11x14', 'rectangle_7x12x15']
+    #selected_hole_list = ['circle_7x10', 'circle_7x11', 'circle_7x12', 'circle_7x13', 'circle_7x14']
     #selected_hole_list = ['square', 'small_square', 'circle', 'rectangle', 'triangle']
-    selected_hole_list = ['square']
+    selected_hole_list = ['square_7x12x12']
     for selected_hole in selected_hole_list:
         rob_arm = SingleRoboticArm()
         hole_name = hole_setting[selected_hole][0]
@@ -183,9 +215,10 @@ def main():
             # set init pos of peg nad hole
             rob_arm.set_object_position(hole_name, np.array([0.2, -0.5, 3.6200e-02]))
             rob_arm.set_object_quat(hole_name, origin_hole_quat)
-            _, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 60)
+            #_, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 50)
 
-            # start pose
+            '''
+            # start pose from coarse approach
             delta_move = np.array([random.uniform(-0.03, 0.03), random.uniform(-0.03, 0.03), random.uniform(0.10, 0.12)])
             start_pose = rob_arm.get_object_matrix('UR5_ikTip')
             hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
@@ -193,6 +226,17 @@ def main():
             start_pos += delta_move
             start_pose[:3, 3] = start_pos
             rob_arm.movement(start_pose)
+            '''
+
+            # start pose from fine approach
+            delta_move = np.array([random.uniform(-0.0125, 0.0125), random.uniform(-0.0125, 0.0125), 0.021 + random.uniform(0.00, 0.015)])
+            start_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
+            hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
+            start_pos = hole_top_pose[:3, 3]
+            start_pos += delta_move
+            start_pose[:3, 3] = start_pos
+            rob_arm.movement(start_pose)
+
             '''
             # (test)move to hole top
             for i in range(2):
@@ -218,6 +262,7 @@ def main():
                     robot_pose[:3, 3] = hole_keypoint_top_pose[:3, 3] + hole_keypoint_top_pose[:3, 0] * 0.025
                     rob_arm.movement(robot_pose)
             '''
+            '''
             # coarse approach
             gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
             delta_xyz_pred, delta_rot_pred = predict_xyzrot_from_multiple_camera(cam_name_list, coarse_mover, rob_arm)
@@ -233,7 +278,7 @@ def main():
                 rob_arm.movement(gripper_pose)
             else:
                 continue
-
+            '''
             # fine approach
             # open-loop
             '''
@@ -261,16 +306,17 @@ def main():
                 print(distance_error)
                 #print(step_size)
                 '''
-                print(step_size)
+                #print(step_size)
+                print(delta_xyz_pred)
                 gripper_pose[:3, 3] += delta_xyz_pred
                 rob_arm.movement(gripper_pose)
-                if step_size < 0.005 or cnt >= 5:
+                if (abs(delta_xyz_pred[0]) < 0.003 and abs(delta_xyz_pred[1]) < 0.003) or cnt >= 8:
                     break
                 cnt = cnt + 1
 
             # insertion
             robot_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-            robot_pose[:3, 3] -= robot_pose[:3, 0] * 0.08  # x-axis
+            robot_pose[:3, 3] -= robot_pose[:3, 0] * 0.18  # x-axis
             rob_arm.movement(robot_pose)
 
             # record insertion
@@ -280,8 +326,10 @@ def main():
             print('dist', dist)
             #f.write(str(tilt_degree) + ' ' + str(dist) + '\n')
             if dist < 0.010:
+                print('success!')
                 insertion_succ_list.append(1)
             else:
+                print('fail!')
                 insertion_succ_list.append(0)
             rob_arm.finish()
             '''

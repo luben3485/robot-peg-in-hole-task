@@ -10,6 +10,7 @@ import time
 from transforms3d.quaternions import mat2quat, quat2axangle, quat2mat, qmult
 from scipy.spatial.transform import Rotation as R
 import argparse
+import copy
 
 def world2camera_from_map(camera2world_map):
     camera2world = camera2world_from_map(camera2world_map)
@@ -313,8 +314,8 @@ def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
         tilt_degree = math.degrees(math.acos(dot_product / (np.linalg.norm(src_hole_dir) * np.linalg.norm(dst_hole_dir))))
         if abs(tilt_degree) <= max_tilt_degree and abs(tilt_degree) >= min_tilt_degree:
             break
-    print('rot_dir:', rot_dir)
-    print('tilt degree:', tilt_degree)
+    #print('rot_dir:', rot_dir)
+    #print('tilt degree:', tilt_degree)
     w = math.cos(math.radians(tilt_degree / 2))
     x = math.sin(math.radians(tilt_degree / 2)) * rot_dir[0]
     y = math.sin(math.radians(tilt_degree / 2)) * rot_dir[1]
@@ -326,6 +327,8 @@ def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
         obj_quat = qmult(rot_quat, obj_quat)  # [w,x,y,z]
         obj_quat = [obj_quat[1], obj_quat[2], obj_quat[3], obj_quat[0]]  # change to [x,y,z,w]
         rob_arm.set_object_quat(obj_name, obj_quat)
+
+    return rot_dir, tilt_degree
 
 def getFootPoint(point, line_p1, line_p2):
     """
@@ -380,15 +383,32 @@ def main(args):
     cnt = 0
     iter = args.iter
     #cam_name = 'vision_eye_1'
-    cam_name_list = ['vision_eye_left', 'vision_eye_right']
+    cam_name_list = ['vision_eye_front', 'vision_eye_left', 'vision_eye_right']
     peg_top = 'peg_dummy_top'
     peg_bottom = 'peg_dummy_bottom'
     peg_name = 'peg_in_arm'
+    '''
     hole_setting = {'square': ['square', 'hole_keypoint_top0', 'hole_keypoint_bottom0', 'hole_keypoint_obj_bottom0'],
                     'small_square': ['small_square', 'hole_keypoint_top1', 'hole_keypoint_bottom1', 'hole_keypoint_obj_bottom1'],
                     'circle': ['circle', 'hole_keypoint_top2', 'hole_keypoint_bottom2', 'hole_keypoint_obj_bottom2'],
                     'rectangle': ['rectangle', 'hole_keypoint_top3', 'hole_keypoint_bottom3', 'hole_keypoint_obj_bottom3'],
                     'triangle': ['triangle', 'hole_keypoint_top4', 'hole_keypoint_bottom4', 'hole_keypoint_obj_bottom4']}
+    '''
+    hole_setting = {'square_7x10x10': ['square_7x10x10', 'hole_keypoint_top0', 'hole_keypoint_bottom0', 'hole_keypoint_obj_bottom0'],
+                    'square_7x11x11': ['square_7x11x11', 'hole_keypoint_top1', 'hole_keypoint_bottom1', 'hole_keypoint_obj_bottom1'],
+                    'square_7x12x12': ['square_7x12x12', 'hole_keypoint_top2', 'hole_keypoint_bottom2', 'hole_keypoint_obj_bottom2'],
+                    'square_7x13x13': ['square_7x13x13', 'hole_keypoint_top3', 'hole_keypoint_bottom3', 'hole_keypoint_obj_bottom3'],
+                    'square_7x14x14': ['square_7x14x14', 'hole_keypoint_top4', 'hole_keypoint_bottom4', 'hole_keypoint_obj_bottom4'],
+                    'rectangle_7x8x11': ['rectangle_7x8x11', 'hole_keypoint_top5', 'hole_keypoint_bottom5', 'hole_keypoint_obj_bottom5'],
+                    'rectangle_7x9x12': ['rectangle_7x9x12', 'hole_keypoint_top6', 'hole_keypoint_bottom6', 'hole_keypoint_obj_bottom6'],
+                    'rectangle_7x10x13': ['rectangle_7x10x13', 'hole_keypoint_top7', 'hole_keypoint_bottom7', 'hole_keypoint_obj_bottom7'],
+                    'rectangle_7x11x14': ['rectangle_7x11x14', 'hole_keypoint_top8', 'hole_keypoint_bottom8', 'hole_keypoint_obj_bottom8'],
+                    'rectangle_7x12x15': ['rectangle_7x12x15', 'hole_keypoint_top9', 'hole_keypoint_bottom9', 'hole_keypoint_obj_bottom9'],
+                    'circle_7x10': ['circle_7x10', 'hole_keypoint_top10', 'hole_keypoint_bottom10', 'hole_keypoint_obj_bottom10'],
+                    'circle_7x11': ['circle_7x11', 'hole_keypoint_top11', 'hole_keypoint_bottom11', 'hole_keypoint_obj_bottom11'],
+                    'circle_7x12': ['circle_7x12', 'hole_keypoint_top12', 'hole_keypoint_bottom12', 'hole_keypoint_obj_bottom12'],
+                    'circle_7x13': ['circle_7x13', 'hole_keypoint_top13', 'hole_keypoint_bottom13', 'hole_keypoint_obj_bottom13'],
+                    'circle_7x14': ['circle_7x14', 'hole_keypoint_top14', 'hole_keypoint_bottom14', 'hole_keypoint_obj_bottom14'], }
     selected_hole = args.hole
     hole_name = hole_setting[selected_hole][0]
     hole_top = hole_setting[selected_hole][1]
@@ -436,10 +456,10 @@ def main(args):
             continue
         '''
         # set init pos of hole
-        hole_pos = get_init_pos(origin_hole_pos.copy())
+        hole_pos = np.array([random.uniform(0.0, 0.2), random.uniform(-0.45, -0.55), 0.035])
         rob_arm.set_object_position(hole_name, hole_pos)
         rob_arm.set_object_quat(hole_name, origin_hole_quat)
-        #random_tilt(rob_arm, [hole_name], 0, 50)
+        random_tilt(rob_arm, [hole_name], 0, 50)
 
         '''
         # peg hole alignment
@@ -470,12 +490,15 @@ def main(args):
         '''
 
         hole_top_pose = rob_arm.get_object_matrix(hole_top)
+        hole_top_pose_tmp = copy.deepcopy(hole_top_pose)
+        hole_top_pose_tmp[:3, 3] += hole_top_pose_tmp[:3, 0] * 0.05
+        rob_arm.movement(hole_top_pose_tmp)
         rob_arm.movement(hole_top_pose)
         # target pose move peg to random x,y,z
         target_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-        random_x = random.uniform(0, 0.01) #random.uniform(0, 0.02)
-        random_y = random.uniform(-0.01, 0.01) #random.uniform(-0.03, 0.03)
-        random_z = random.uniform(-0.01, 0.01) #random.uniform(-0.03, 0.03)
+        random_x = random.uniform(0, 0.015) #random.uniform(0, 0.02)
+        random_y = random.uniform(-0.005, 0.005) #random.uniform(-0.03, 0.03)
+        random_z = random.uniform(-0.005, 0.005) #random.uniform(-0.03, 0.03)
         target_pose[:3, 3] = target_pose[:3, 3] + target_pose[:3, 0] * random_x + target_pose[:3, 1] * random_y + target_pose[:3, 2] * random_z
         rel_delta_translation = [-random_x, -random_y, -random_z]
         '''
@@ -570,7 +593,7 @@ def main(args):
                         delta_rotation = np.dot(cnt_rot_t, pre_rot)
                         r = R.from_matrix(delta_rotation)
                         r_euler = r.as_euler('zyx', degrees=True)
-                        print('delta_translation', delta_translation)
+                        #print('delta_translation', delta_translation)
                         print('delta_rotation', delta_rotation)
                         print('r_euler', r_euler)
                         try:
@@ -594,7 +617,14 @@ def main(args):
                 pre_xyz = gripper_pose[:3, 3]
                 pre_rot = gripper_pose[:3, :3]
                 rob_arm.movement(target_pose)
-                #random_tilt(rob_arm, ['UR5_ikTarget'], 0, 5)
+                gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
+                dist = np.linalg.norm(gripper_pose[:3, 3] - target_pose[:3, 3])
+                if dist > 0.0005:
+                    rob_arm.finish()
+                    print('skip', dist)
+                    continue
+                #_, tilt_degree = random_tilt(rob_arm, ['UR5_ikTarget'], 0, 5)
+                #print('tilt degree', tilt_degree)
                 gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
                 cnt_xyz = gripper_pose[:3, 3]
                 cnt_rot = gripper_pose[:3, :3]

@@ -1,0 +1,1 @@
+square hole success rate : 90.5% (181/200)

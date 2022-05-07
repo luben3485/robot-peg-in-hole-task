@@ -1,23 +1,20 @@
 from ruamel import yaml
 import os
-data_root = '/Users/cmlab/data/pdc/logs_proto'
-date = '2021-07-25'
-anno_data = 'insertion_xyzrot_eye_toy' + date + '/processed'
-im_data = 'insertion_xyzrot_eye_toy' + date + '/processed/images'
+from tqdm import tqdm
+data_root = '/home/luben/data/pdc/logs_proto'
+data_folder = 'fine_insertion_square_7x12x12_2022-05-02-notilt'
+anno_data = data_folder + '/processed'
+im_data = data_folder + '/processed/images'
 anno_data_path = os.path.join(data_root, anno_data)
 
 with open(os.path.join(anno_data_path, 'peg_in_hole.yaml'), 'r') as f_r:
     data = yaml.load(f_r)
 print(type(data))
 print(len(data))
-for i in range(len(data)):
+new_data = {}
+for key, value in tqdm(data.items()):
     # do something here
-    #data[i]['bbox_bottom_right_xy'] = [255,255]
-    #data[i]['bbox_top_left_xy'] = [0,0]
-    if len(data[i]['delta_rotation_matrix']) == 10:
-        print('An length error was found!')
-        data[i]['delta_rotation_matrix'] = [[1.0, 0.0, 0.0],
-                                           [0.0, 1.0, 0.0],
-                                           [0.0, 0.0, 1.0]]
-with open(os.path.join(anno_data_path, 'peg_in_hole_test.yaml'), 'w') as f_w:
-    yaml.dump(data, f_w, Dumper=yaml.RoundTripDumper)
+    if key < 10:
+        new_data[key] = value
+with open(os.path.join(anno_data_path, 'peg_in_hole_small.yaml'), 'w') as f_w:
+    yaml.dump(new_data, f_w, Dumper=yaml.RoundTripDumper)

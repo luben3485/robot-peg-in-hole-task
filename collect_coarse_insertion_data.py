@@ -337,7 +337,6 @@ def parse_args():
     return parser.parse_args()
 
 def main(args):
-    rob_arm = SingleRoboticArm()
     data_root = args.data_root
     date = args.date
     anno_data = 'coarse_insertion_' + args.hole + '_' + date + '/processed'
@@ -356,7 +355,7 @@ def main(args):
     cnt = 0
     iter = args.iter
     #cam_name = 'vision_eye_left'
-    cam_name_list = ['vision_eye_left', 'vision_eye_right']
+    cam_name_list = ['vision_eye_front', 'vision_eye_left', 'vision_eye_right']
     peg_top = 'peg_dummy_top'
     peg_bottom = 'peg_dummy_bottom'
     peg_name = 'peg_in_arm'
@@ -373,21 +372,20 @@ def main(args):
 
     move_record = True
     ompl_path_planning = False
-
+    rob_arm = SingleRoboticArm()
     origin_hole_pose = rob_arm.get_object_matrix(hole_name)
     origin_hole_pos = origin_hole_pose[:3, 3]
     origin_hole_quat = rob_arm.get_object_quat(hole_name)
+    rob_arm.finish()
 
-    gripper_init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
     for i in range(iter):
         print('=' * 8 + 'Iteration '+ str(i) + '=' * 8)
+        rob_arm = SingleRoboticArm()
         # set init pos of hole
         hole_pos = get_init_pos(origin_hole_pos.copy())
-
         rob_arm.set_object_position(hole_name, hole_pos)
         rob_arm.set_object_quat(hole_name, origin_hole_quat)
-        random_tilt(rob_arm, [hole_name], 0, 60)
-        rob_arm.movement(gripper_init_pose)
+        random_tilt(rob_arm, [hole_name], 0, 50)
 
         # move peg to random x,y,z
         target_pose = rob_arm.get_object_matrix(obj_name = 'UR5_ikTarget')
@@ -402,7 +400,7 @@ def main(args):
             # move to target pose in order to get joint position
             rob_arm.movement(target_pose)
             target_joint_config = rob_arm.get_joint_position()
-        rob_arm.movement(gripper_init_pose)
+
         '''
         # gt grasp peg
         # enable dynamic property of the peg
@@ -447,7 +445,7 @@ def main(args):
             robot_pose[:3, :3] = rot_matrix
 
             hole_keypoint_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
-            random_pull_up_dis = random.uniform(0.03, 0.05)
+            random_pull_up_dis = random.uniform(0.005, 0.01)
             robot_pose[:3,3] = hole_keypoint_top_pose[:3,3] + hole_keypoint_top_pose[:3,0] * random_pull_up_dis
             rob_arm.movement(robot_pose)
             ''''
@@ -544,6 +542,12 @@ def main(args):
                 pre_rot = gripper_pose[:3, :3]
                 rob_arm.movement(target_pose)
                 gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
+                dist = np.linalg.norm(gripper_pose[:3, 3] - target_pose[:3, 3])
+                if dist > 0.0005:
+                    rob_arm.finish()
+                    print('skip', dist)
+                    continue
+                gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
                 cnt_xyz = gripper_pose[:3, 3]
                 cnt_rot = gripper_pose[:3, :3]
                 delta_translation = pre_xyz - cnt_xyz
@@ -569,8 +573,8 @@ def main(args):
                 cnt += 1*len(cam_name_list)
             else:
                 rob_arm.movement(target_pose)
+        rob_arm.finish()
 
-    rob_arm.finish()
     f = open(os.path.join(anno_data_path, 'peg_in_hole.yaml'),'w')
     yaml.dump(info_dic,f , Dumper=yaml.RoundTripDumper)
     f.close()
