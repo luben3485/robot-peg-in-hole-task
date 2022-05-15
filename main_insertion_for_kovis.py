@@ -90,7 +90,7 @@ def specific_tilt(rob_arm, obj_name_list, rot_dir, tilt_degree):
         obj_quat = [obj_quat[1], obj_quat[2], obj_quat[3], obj_quat[0]]  # change to [x,y,z,w]
         rob_arm.set_object_quat(obj_name, obj_quat)
 
-def predict_xyz(cam_name_list, mover, rob_arm):
+def predict_xyz(cam_name_list, mover, rob_arm, tilt):
     assert len(cam_name_list) == 2
     imgs = []
     for cam_name in cam_name_list:
@@ -98,20 +98,19 @@ def predict_xyz(cam_name_list, mover, rob_arm):
         im = cv2.cvtColor(im, cv2.COLOR_RGB2GRAY)
         imgs.append(im)
 
-    vec, speed = mover.inference(imgs, visualize=True)
-    delta_xyz_pred = vec * speed * 0.01
-    #delta_xyz_pred[:2]*= 2.5
-    return delta_xyz_pred, speed
+    xyz, rot, speed = mover.inference(imgs, visualize=True, tilt=tilt)
+
+    return xyz, rot, speed
 
 def main():
     # create folder
     benchmark_folder = 'pcd_benchmark/kovis'
     if not os.path.exists(benchmark_folder):
         os.makedirs(benchmark_folder)
-    f = open(os.path.join(benchmark_folder, "hole_score.txt"), "w")
-    kovis_mover = KOVISMover()
-    iter_num = 500
-    cam_name_list = ['vision_eye_left', 'vision_eye_left']
+    tilt = False
+    kovis_mover = KOVISMover(ckpt_folder = 'insert-0506')
+    iter_num = 250
+    cam_name_list = ['vision_eye_left', 'vision_eye_right']
     peg_top = 'peg_dummy_top'
     peg_bottom = 'peg_dummy_bottom'
     peg_name = 'peg_in_arm'
@@ -135,32 +134,36 @@ def main():
     #selected_hole_list = ['rectangle_7x8x11', 'rectangle_7x9x12', 'rectangle_7x10x13', 'rectangle_7x11x14', 'rectangle_7x12x15']
     #selected_hole_list = ['circle_7x10', 'circle_7x11', 'circle_7x12', 'circle_7x13', 'circle_7x14']
     #selected_hole_list = ['square', 'small_square', 'circle', 'rectangle', 'triangle']
-    selected_hole_list = ['square_7x12x12']
+    selected_hole_list = ['square_7x12x12', 'square_7x10x10', 'square_7x14x14', 'rectangle_7x8x11', 'rectangle_7x10x13', 'rectangle_7x12x15', 'circle_7x10', 'circle_7x12', 'circle_7x14']
     for selected_hole in selected_hole_list:
+        f = open(os.path.join(benchmark_folder, "hole_score.txt"), "a")
         rob_arm = SingleRoboticArm()
         hole_name = hole_setting[selected_hole][0]
         hole_top = hole_setting[selected_hole][1]
         hole_bottom = hole_setting[selected_hole][2]
         gripper_init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-        gripper_init_pose[:3,3] -=[0, 0, 0.1]
+        #gripper_init_pose[:3,3] -=[0, 0, 0.01]
         origin_hole_pose = rob_arm.get_object_matrix(hole_name)
         origin_hole_pos = origin_hole_pose[:3, 3]
         origin_hole_quat = rob_arm.get_object_quat(hole_name)
         rob_arm.finish()
 
         insertion_succ_list = []
+        error_x, error_y = [], []
         for iter in range(iter_num):
             rob_arm = SingleRoboticArm()
             print('=' * 8 + str(iter) + '=' * 8)
             rob_arm.movement(gripper_init_pose)
             # set init pos of peg nad hole
-            rob_arm.set_object_position(hole_name, np.array([0.2, -0.5, 3.6200e-02]))
+            '''
+            rob_arm.set_object_position(hole_name, np.array([0.0, -0.5, 3.6200e-02]))
             rob_arm.set_object_quat(hole_name, origin_hole_quat)
-
-            hole_pos = np.array([random.uniform(0.02, 0.18), random.uniform(-0.45, -0.5),0.035])  # np.array([random.uniform(0.0, 0.2), random.uniform(-0.45, -0.55), 0.035])
+            '''
+            hole_pos = np.array([random.uniform(0.02, 0.18), random.uniform(-0.45, -0.5), 0.035])  # np.array([random.uniform(0.0, 0.2), random.uniform(-0.45, -0.55), 0.035])
             rob_arm.set_object_position(hole_name, hole_pos)
             rob_arm.set_object_quat(hole_name, origin_hole_quat)
-            #_, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 50)
+            if tilt:
+                _, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 50)
 
             '''
             # start pose from coarse approach
@@ -172,17 +175,23 @@ def main():
             start_pose[:3, 3] = start_pos
             rob_arm.movement(start_pose)
             '''
-            '''
+
             # start pose from fine approach
-            delta_move = np.array([random.uniform(-0.04, 0.04), random.uniform(-0.04, 0.04), 0.02 + random.uniform(0.02, 0.03)])
-            delta_move = np.array([0.04,0.04,0.08])
+            '''
+            while True:
+                delta_move = np.array([random.uniform(-0.025, 0.025), random.uniform(-0.025, 0.025), 0.08])
+                if abs(delta_move[0]) >= 0.02 or abs(delta_move[1]) >= 0.02:
+                    break
+            '''
+
+            delta_move = np.array([random.uniform(-0.04, 0.04), random.uniform(-0.04, 0.04), random.uniform(0.07, 0.15)])
             start_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
             hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
             start_pos = hole_top_pose[:3, 3]
             start_pos += delta_move
             start_pose[:3, 3] = start_pos
             rob_arm.movement(start_pose)
-            '''
+
             '''
             # (test)move to hole top
             for i in range(2):
@@ -242,36 +251,65 @@ def main():
             while True:
                 ### start
                 gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
-                delta_xyz_pred, speed = predict_xyz(cam_name_list, kovis_mover, rob_arm)
-                '''
-                # compute distance error
-                hole_top_pose = rob_arm.get_object_matrix(hole_top)
-                hole_top_pos = hole_top_pose[:3, 3]
-                hole_top_pos_pred = delta_xyz_pred + gripper_pose[:3, 3]
-                distance_error = np.linalg.norm(hole_top_pos - hole_top_pos_pred)*1000 # unit:mm
-                print(distance_error)
-                #print(step_size)
-                '''
-                print('delta_xyz_pred', delta_xyz_pred)
-                print('speed', speed)
-                gripper_pose[:3, 3] += delta_xyz_pred
+                xyz, rot, speed = predict_xyz(cam_name_list, kovis_mover, rob_arm, tilt)
+                if tilt:
+                    if speed > 0.7:
+                        delta_xyz_pred = xyz * speed * 0.01
+                    else:
+                        delta_xyz_pred = xyz * speed * 0.001
+                    gripper_pose[:3, 3] = gripper_pose[:3, 3] + gripper_pose[:3, 0] * delta_xyz_pred[0] + gripper_pose[:3, 1] * delta_xyz_pred[1] + gripper_pose[:3, 2] * delta_xyz_pred[2]
+                    r = R.from_euler('zyx', rot, degrees=True)
+                    delta_rot_pred = r.as_matrix()
+                    gripper_pose[:3, :3] = np.dot(gripper_pose[:3, :3], delta_rot_pred)
+                else:
+                    if speed > 0.7:
+                        delta_xyz_pred = xyz * speed * 0.01
+                    else:
+                        delta_xyz_pred = xyz * speed * 0.001
+                    gripper_pose[:3, 3] += delta_xyz_pred
+
                 rob_arm.movement(gripper_pose)
-                #rob_arm.set_object_position('UR5_ikTarget', gripper_pose[:3,3])
-                if speed > 0.1:
-                    cnt_end = 0
-                elif speed <= 0.1:
-                    cnt_end += 1
-                    if cnt_end > 5:
-                        break
-                '''       
-                if (abs(delta_xyz_pred[0]) < 0.003 and abs(delta_xyz_pred[1]) < 0.003) or cnt >= 8:
+
+                #avoid crash
+                hole_top_pose = rob_arm.get_object_matrix(hole_top)
+                if np.linalg.norm(gripper_pose[:3, 3] -  hole_top_pose[:3, 3]) > 0.3:
+                    print('crash! Distance between peg and hole is too far.')
                     break
-                '''
+                peg_dir = rob_arm.get_object_matrix(peg_bottom)[:3, 0].reshape(1, 3)
+                hole_dir = rob_arm.get_object_matrix(hole_top)[:3, 0].reshape(3, 1)
+                dot_product = np.dot(peg_dir, hole_dir)
+                angle = math.degrees(math.acos(dot_product / (np.linalg.norm(peg_dir) * np.linalg.norm(hole_dir))))
+                if angle > 5 and not tilt:
+                    print('crash! Angle is too large')
+                    break
+                if angle > 80 and tilt:
+                    print('crash! Angle is too large')
+                    break
+                if cnt >= 25:
+                    print('crash! Too long')
+                    break
+                if speed > 0.7:
+                    cnt_end = 0
+                elif speed <= 0.7:
+                    cnt_end += 1
+                    if cnt_end > 3:
+                        rob_arm.movement(gripper_pose)
+                        # compute distance error
+                        hole_top_pose = rob_arm.get_object_matrix(hole_top)
+                        hole_top_pos = hole_top_pose[:3, 3]
+                        gripper_pos = rob_arm.get_object_matrix('UR5_ikTip')[:3, 3]
+                        error = gripper_pos - hole_top_pos
+                        print('error x:', error[0])
+                        print('error y:', error[1])
+                        error_x.append(error[0])
+                        error_y.append(error[1])
+                        break
+
                 cnt = cnt + 1
 
             # insertion
             robot_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-            robot_pose[:3, 3] -= robot_pose[:3, 0] * 0.2  # x-axis
+            robot_pose[:3, 3] -= robot_pose[:3, 0] * 0.25  # x-axis
             rob_arm.movement(robot_pose)
 
             # record insertion
@@ -297,8 +335,12 @@ def main():
         msg = hole_name + ' hole success rate : ' + str(insertion_succ * 100) + '% (' + str(sum(insertion_succ_list)) + '/' + str(len(insertion_succ_list)) + ')'
         print(msg)
         f.write(msg + '\n')
-        #rob_arm.finish()
-    f.close()
+        if len(error_x)!=0 and len(error_y)!=0:
+            print('average x error', sum(error_x) / len(error_x))
+            print('average y error', sum(error_y) / len(error_y))
+            f.write('* average x error' + str(sum(error_x) / len(error_x)) + '\n')
+            f.write('* average y error' + str(sum(error_y) / len(error_y)) + '\n')
+        f.close()
 
 
 if __name__ == '__main__':

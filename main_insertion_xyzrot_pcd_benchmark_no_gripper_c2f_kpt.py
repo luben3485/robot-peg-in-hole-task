@@ -291,7 +291,7 @@ def predict_dsae_xyzrot_from_multiple_camera(cam_name_list, mover, rob_arm):
 def parse_args():
     '''PARAMETERS'''
     parser = argparse.ArgumentParser()
-    parser.add_argument('--iter', type=int, default=500)
+    parser.add_argument('--iter', type=int, default=250)
 
     return parser.parse_args()
 
@@ -343,14 +343,14 @@ def main(args):
     #selected_hole_list = ['square_7x10x10', 'square_7x11x11', 'square_7x12x12', 'square_7x13x13', 'square_7x14x14']
     #selected_hole_list = ['rectangle_7x8x11', 'rectangle_7x9x12', 'rectangle_7x10x13', 'rectangle_7x11x14', 'rectangle_7x12x15']
     #selected_hole_list = ['circle_7x10', 'circle_7x11', 'circle_7x12', 'circle_7x13', 'circle_7x14']
-    selected_hole_list = ['square_7x12x12']
+    #selected_hole_list = ['square_7x10x10', 'square_7x14x14', 'square_7x12x12', 'rectangle_7x8x11', 'rectangle_7x10x13', 'rectangle_7x12x15', 'circle_7x10', 'circle_7x12', 'circle_7x14']
+    selected_hole_list = ['circle_7x10']
     for selected_hole in selected_hole_list:
         rob_arm = SingleRoboticArm()
         hole_name = hole_setting[selected_hole][0]
         hole_top = hole_setting[selected_hole][1]
         hole_bottom = hole_setting[selected_hole][2]
         gripper_init_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-        gripper_init_pose[:3,3] -=[0, 0, 0.1]
         origin_hole_pose = rob_arm.get_object_matrix(hole_name)
         origin_hole_pos = origin_hole_pose[:3, 3]
         origin_hole_quat = rob_arm.get_object_quat(hole_name)
@@ -387,7 +387,7 @@ def main(args):
                 rob_arm.movement(start_pose)
             else:
                 #hole_pos = np.array([random.uniform(0.0, 0.2), random.uniform(-0.45, -0.55), 0.035])
-                hole_pos = np.array([random.uniform(0.02, 0.18), random.uniform(-0.45, -0.5), 0.035]) #np.array([random.uniform(0.0, 0.2), random.uniform(-0.45, -0.55), 0.035])
+                hole_pos = np.array([random.uniform(0.02, 0.18), random.uniform(-0.45, -0.52), 0.035]) #np.array([random.uniform(0.0, 0.2), random.uniform(-0.45, -0.55), 0.035])
                 rob_arm.set_object_position(hole_name, hole_pos)
                 rob_arm.set_object_quat(hole_name, origin_hole_quat)
                 #_, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 50)
@@ -426,48 +426,56 @@ def main(args):
             gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
             #delta_xyz_pred, delta_rot_pred = predict_kpts_xyzrot_from_multiple_camera(cam_name_list, gripper_pose, coarse_mover, rob_arm)
             delta_xyz_pred, delta_rot_pred = predict_kpts_no_oft_from_multiple_camera(cam_name_list, gripper_pose, coarse_mover, rob_arm)
+            '''
+            if delta_xyz_pred[2] > 0:
+                print('crash!' )
+                insertion_succ_list.append(0)
+                rob_arm.finish()
+                continue
+            '''
+            '''
             r = R.from_matrix(delta_rot_pred)
             r_euler = r.as_euler('zyx', degrees=True)
             if abs(r_euler[0]) < 90 and abs(r_euler[1]) < 90 and abs(r_euler[2]) < 90:
-                gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
-                rot_matrix = np.dot(gripper_pose[:3, :3], delta_rot_pred[:3, :3])
-                gripper_pose[:3, :3] = rot_matrix
-                gripper_pose[:3, 3] += delta_xyz_pred[0] #(3,)
-                gripper_pose[:3, 3] += np.array(rot_matrix[:3, 0]*0.010) # tmp for kpts_no_oft
-                rob_arm.movement(gripper_pose)
-                '''
-                gripper_pose_after = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
-                dist = np.linalg.norm(gripper_pose_after[:3, 3] - gripper_pose[:3, 3])
-                if dist > 0.0005:
-                    rob_arm.finish()
-                    print('skip', dist)
-                    skip_cnt = skip_cnt + 1
-                    continue
-                '''
-                # compute error
-                peg_hole_dir = (rob_arm.get_object_matrix(hole_top)[:3, 3] - rob_arm.get_object_matrix(peg_bottom)[:3, 3]).reshape(1, 3)
-                hole_dir = rob_arm.get_object_matrix(hole_top)[:3, 0].reshape(3, 1)
-                c_kpt_error = np.linalg.norm(peg_hole_dir) * 1000  # unit:mm
-                dot_product = np.dot(peg_hole_dir, hole_dir)
-                angle = math.acos(dot_product / (np.linalg.norm(peg_hole_dir) * np.linalg.norm(hole_dir)))  # rad
-                peg_hole_dis = np.linalg.norm(peg_hole_dir)
-                c_kpt_yz_error = peg_hole_dis * math.sin(angle) *1000
-                print('coarse keypiont error', c_kpt_error)
-                print('coarse keypiont yz error', c_kpt_yz_error)
-                peg_dir = rob_arm.get_object_matrix(peg_bottom)[:3, 0].reshape(1, 3)
-                hole_dir = rob_arm.get_object_matrix(hole_top)[:3, 0].reshape(3, 1)
-                dot_product = np.dot(peg_dir, hole_dir)
-                c_dir_error = math.degrees(math.acos(dot_product / (np.linalg.norm(peg_dir) * np.linalg.norm(hole_dir))))
-                print('coarse direction error', c_dir_error)
-
-                if c_dir_error > 30:
-                    print(c_dir_error)
-                    insertion_succ_list.append(0)
-                    rob_arm.finish()
-                    continue
-
-            else:
+            '''
+            gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
+            rot_matrix = np.dot(gripper_pose[:3, :3], delta_rot_pred[:3, :3])
+            gripper_pose[:3, :3] = rot_matrix
+            gripper_pose[:3, 3] += delta_xyz_pred #(3,)
+            gripper_pose[:3, 3] += np.array(rot_matrix[:3, 0]*0.010) # tmp for kpts_no_oft
+            rob_arm.movement(gripper_pose)
+            '''
+            gripper_pose_after = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
+            dist = np.linalg.norm(gripper_pose_after[:3, 3] - gripper_pose[:3, 3])
+            if dist > 0.0005:
+                rob_arm.finish()
+                print('skip', dist)
+                skip_cnt = skip_cnt + 1
                 continue
+            '''
+            '''
+            # compute error
+            peg_hole_dir = (rob_arm.get_object_matrix(hole_top)[:3, 3] - rob_arm.get_object_matrix(peg_bottom)[:3, 3]).reshape(1, 3)
+            hole_dir = rob_arm.get_object_matrix(hole_top)[:3, 0].reshape(3, 1)
+            c_kpt_error = np.linalg.norm(peg_hole_dir) * 1000  # unit:mm
+            dot_product = np.dot(peg_hole_dir, hole_dir)
+            angle = math.acos(dot_product / (np.linalg.norm(peg_hole_dir) * np.linalg.norm(hole_dir)))  # rad
+            peg_hole_dis = np.linalg.norm(peg_hole_dir)
+            c_kpt_yz_error = peg_hole_dis * math.sin(angle) *1000
+            print('coarse keypiont error', c_kpt_error)
+            print('coarse keypiont yz error', c_kpt_yz_error)
+            peg_dir = rob_arm.get_object_matrix(peg_bottom)[:3, 0].reshape(1, 3)
+            hole_dir = rob_arm.get_object_matrix(hole_top)[:3, 0].reshape(3, 1)
+            dot_product = np.dot(peg_dir, hole_dir)
+            c_dir_error = math.degrees(math.acos(dot_product / (np.linalg.norm(peg_dir) * np.linalg.norm(hole_dir))))
+            print('coarse direction error', c_dir_error)
+            if c_dir_error > 30:
+                print('crash! Angle is too large')
+                print(c_dir_error)
+                insertion_succ_list.append(0)
+                rob_arm.finish()
+                continue
+            '''
 
             # fine approach
             # closed-loop
@@ -478,33 +486,37 @@ def main(args):
                 #delta_xyz_pred = predict_kpt_xyz_from_multiple_camera(cam_name_list, gripper_pose, fine_mover, rob_arm)
                 #delta_xyz_pred, _ = predict_kpts_xyzrot_from_multiple_camera(cam_name_list, gripper_pose, fine_mover, rob_arm)
                 #delta_xyz_pred, delta_rot_pred = predict_kpts_no_oft_from_multiple_camera(cam_name_list, gripper_pose, fine_mover, rob_arm)
-                delta_xyz_pred, delta_rot_pred, delta_rot_euler_pred = predict_offset_from_multiple_camera(cam_name_list, gripper_pose, fine_mover, rob_arm, crop_pcd=True)
                 #delta_xyz_pred, delta_rot_pred = predict_dsae_xyzrot_from_multiple_camera(cam_name_list, fine_mover, rob_arm)
+                delta_xyz_pred, delta_rot_pred, delta_rot_euler_pred = predict_offset_from_multiple_camera(cam_name_list, gripper_pose, fine_mover, rob_arm, crop_pcd=True)
+                step_size = np.linalg.norm(delta_xyz_pred)
                 print(delta_xyz_pred)
                 print(delta_rot_euler_pred)
-                step_size = np.linalg.norm(delta_xyz_pred)
                 rot_matrix = np.dot(gripper_pose[:3, :3], delta_rot_pred[:3, :3])
                 gripper_pose[:3, :3] = rot_matrix
                 gripper_pose[:3, 3] += delta_xyz_pred #(3,)
                 rob_arm.movement(gripper_pose)
 
-                if (step_size < 0.005 and (abs(delta_rot_euler_pred)< 1.5).all()) or cnt >= 5:
-                #if step_size < 0.005 or cnt >= 5:
-                    # compute error
-                    peg_hole_dir  = (rob_arm.get_object_matrix(hole_top)[:3, 3] - rob_arm.get_object_matrix(peg_bottom)[:3,3]).reshape(1, 3)
-                    hole_dir = rob_arm.get_object_matrix(hole_top)[:3, 0].reshape(3, 1)
-                    f_kpt_error = np.linalg.norm(peg_hole_dir) * 1000  # unit:mm
-                    dot_product = np.dot(peg_hole_dir, hole_dir)
-                    angle = math.acos(dot_product / (np.linalg.norm(peg_hole_dir) * np.linalg.norm(hole_dir))) #rad
-                    peg_hole_dis = np.linalg.norm(peg_hole_dir)
-                    f_kpt_yz_error = peg_hole_dis * math.sin(angle) *1000
-                    print('fine keypiont error', f_kpt_error)
-                    print('fine keypiont_yz error', f_kpt_yz_error)
-                    peg_dir = rob_arm.get_object_matrix(peg_bottom)[:3, 0].reshape(1, 3)
-                    hole_dir = rob_arm.get_object_matrix(hole_top)[:3, 0].reshape(3, 1)
-                    dot_product = np.dot(peg_dir, hole_dir)
-                    f_dir_error = math.degrees(math.acos(dot_product / (np.linalg.norm(peg_dir) * np.linalg.norm(hole_dir))))
-                    print('fine direction error', f_dir_error)
+                # compute error
+                peg_hole_dir = (rob_arm.get_object_matrix(hole_top)[:3, 3] - rob_arm.get_object_matrix(peg_bottom)[:3,3]).reshape(1, 3)
+                f_kpt_error = np.linalg.norm(peg_hole_dir) * 1000  # unit:mm
+                hole_dir = rob_arm.get_object_matrix(hole_top)[:3, 0].reshape(3, 1)
+                dot_product = np.dot(peg_hole_dir, hole_dir)
+                angle = math.acos(dot_product / (np.linalg.norm(peg_hole_dir) * np.linalg.norm(hole_dir)))  # rad
+                peg_hole_dis = np.linalg.norm(peg_hole_dir)
+                f_kpt_yz_error = peg_hole_dis * math.sin(angle) * 1000
+                print('fine keypiont error', f_kpt_error)
+                print('fine keypiont_yz error', f_kpt_yz_error)
+                peg_dir = rob_arm.get_object_matrix(peg_bottom)[:3, 0].reshape(1, 3)
+                hole_dir = rob_arm.get_object_matrix(hole_top)[:3, 0].reshape(3, 1)
+                dot_product = np.dot(peg_dir, hole_dir)
+                f_dir_error = math.degrees(
+                    math.acos(dot_product / (np.linalg.norm(peg_dir) * np.linalg.norm(hole_dir))))
+                print('fine direction error', f_dir_error)
+                if f_dir_error > 10.0:
+                    print('crash! Angle is too large.')
+                    break
+                if (step_size < 0.005 and (abs(delta_rot_euler_pred)< 1.5).all()) or cnt >= 5 :
+                    print('servoing done!')
                     break
                 cnt = cnt + 1
 

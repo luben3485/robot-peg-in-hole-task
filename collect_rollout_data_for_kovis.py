@@ -7,6 +7,8 @@ import random
 import argparse
 import copy
 import numpy as np
+from scipy.spatial.transform import Rotation as R
+from transforms3d.quaternions import mat2quat, quat2axangle, quat2mat, qmult
 
 from env.single_robotic_arm import SingleRoboticArm
 
@@ -18,6 +20,7 @@ def parse_args():
     parser.add_argument('--date', type=str, default='2022-05-02-notilt-test', help='date')
     parser.add_argument('--data_root', type=str, default='/home/luben/data/kovis', help='data root path')
     parser.add_argument('--data_type', type=str, default='train', help='data type')
+    parser.add_argument('--tilt', action='store_true', default=False, help=' ')
 
     return parser.parse_args()
 args = parse_args()
@@ -65,6 +68,7 @@ class CollectInsert(object):
         self.seg_hole_cam = ['vision_eye_left_hole', 'vision_eye_right_hole']
 
         self.rob_arm = SingleRoboticArm()
+        self.init_gripper_pose = self.rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
         self.origin_hole_pose = self.rob_arm.get_object_matrix(self.hole_name)
         self.origin_hole_pos = self.origin_hole_pose[:3, 3]
         self.origin_hole_quat = self.rob_arm.get_object_quat(self.hole_name)
@@ -74,7 +78,8 @@ class CollectInsert(object):
         self.rollout_step = 5
         self.min_speed = 0.001
         self.max_speed = 0.022
-        self.start_offset = [0, 0, 0.005]
+        self.start_offset = [0, 0, 0.02]
+        self.tilt = args.tilt
 
         if not os.path.exists(os.path.join(self.data_root, self.data_folder, self.data_type)):
             os.makedirs(os.path.join(self.data_root, self.data_folder, self.data_type))
@@ -87,10 +92,11 @@ class CollectInsert(object):
         hole_pos = np.array([random.uniform(0.0, 0.2), random.uniform(-0.45, -0.55), 0.035])
         self.rob_arm.set_object_position(self.hole_name, hole_pos)
         self.rob_arm.set_object_quat(self.hole_name, self.origin_hole_quat)
-        #self.random_tilt([self.hole_name], 0, 50)
+        if self.tilt:
+            self.random_tilt([self.hole_name], 0, 50)
         # set start pose
         start_pose = self.rob_arm.get_object_matrix(obj_name=self.hole_top)
-        start_pose[:3, 3] += self.start_offset
+        start_pose[:3, 3] = start_pose[:3, 3] + start_pose[:3, 0] * self.start_offset[2]
         self.rob_arm.movement(start_pose)
 
     def rollout(self, ):
@@ -98,23 +104,43 @@ class CollectInsert(object):
         # set motion vector & speed
         speed = np.random.uniform(self.min_speed, self.max_speed)
         vec = np.random.rand(3) - 0.5
-        vec[2]*=4
         vec = vec / np.linalg.norm(vec)
+        if self.tilt:
+            # for move
+            source_rot = self.rob_arm.get_object_matrix(obj_name='UR5_ikTarget')[:3, :3]
+            source_rot_t = np.transpose(source_rot)
+            target_rot = self.init_gripper_pose[:3, :3]
+            delta_rotation = np.dot(source_rot_t, target_rot)
+            r = R.from_matrix(delta_rotation)
+            r_rotvec = r.as_rotvec()
+            r = R.from_rotvec(r_rotvec / self.rollout_step)
+            r_mat = r.as_matrix()
+            # for record
+            record_r_mat = np.transpose(r_mat)
+            record_r = R.from_matrix(record_r_mat)
+            r_euler = record_r.as_euler('zyx', degrees=True)
+
         for step in range(self.rollout_step):
             peg_keypoint_bottom_pose = self.rob_arm.get_object_matrix(obj_name=self.peg_bottom)
             hole_keypoint_top_pose = self.rob_arm.get_object_matrix(obj_name=self.hole_top)
-            #if np.linalg.norm(peg_keypoint_bottom_pose[:3, 3] - hole_keypoint_top_pose[:3, 3]) < (np.linalg.norm(self.start_offset) / 3):
             if (peg_keypoint_bottom_pose[2, 3] - hole_keypoint_top_pose[2, 3]) < (self.start_offset[2] / 2):
                 print('too close...')
                 break
             self.save_images(self.sample, step)
             robot_pose = self.rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-            robot_pose[:3, 3] += vec * speed
+            #robot_pose[:3, 3] += vec * speed
+            robot_pose[:3, 3] = robot_pose[:3, 3] + (robot_pose[:3, 0] * vec[0] + robot_pose[:3, 1] * vec[1] + robot_pose[:3, 2] * vec[2]) * speed
+            if self.tilt:
+                rot = np.dot(robot_pose[:3, :3], r_mat)
+                robot_pose[:3, :3] = rot
             self.rob_arm.movement(robot_pose)
             num_roll = step
         if num_roll >= 2:
             print('save!')
-            self.save_label((vec * -1.).tolist() + [0, 0, 0] + [speed])
+            if self.tilt:
+                self.save_label((vec * -1.).tolist() + r_euler.tolist() + [speed])
+            else:
+                self.save_label((vec * -1.).tolist() + [0, 0, 0] + [speed])
             self.sample += 1
         self.rob_arm.finish()
 

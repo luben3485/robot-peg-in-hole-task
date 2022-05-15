@@ -12,18 +12,24 @@ from kovis.train_util import sample_range, img_patch, obj_looks, bg_image, fract
 
 # settings
 #arg = yaml.load(open(sys.argv[1], 'r'), yaml.Loader)
-arg = yaml.load(open('kovis/result/insert/servo.yaml', 'r'), yaml.Loader)
-arg = namedtuple('Arg', arg.keys())(**arg)
 
 class KOVISMover(object):
-    def __init__(self, ):
+    def __init__(self, ckpt_folder):
+        arg = yaml.load(open('kovis/result/' + ckpt_folder + '/servo.yaml', 'r'), yaml.Loader)
+        arg = namedtuple('Arg', arg.keys())(**arg)
+
+        # images
+        self.im_size = arg.im_size
+        self.mean = arg.mean
+        self.std = arg.std
         # model
         self.kper = model.KeyPointGaussian(arg.sigma_kp[0], (arg.num_keypoint, *arg.im_size[1]))
         self.enc = model.Encoder(arg.num_input, arg.num_keypoint, arg.growth_rate[0], arg.blk_cfg_enc, arg.drop_rate, self.kper).cuda()
         self.dec = model.Decoder(arg.num_keypoint, arg.growth_rate[1], arg.blk_cfg_dec, arg.num_output).cuda()
         self.cvt = model.ConverterServo(arg.num_keypoint * 2 * 3, arg.growth_rate[2], arg.blk_cfg_cvt, [sum(arg.motion_vec), 1]).cuda()
         # load model
-        self.load_checkpoint(arg.dir_base)
+        #self.load_checkpoint(arg.dir_base)
+        self.load_checkpoint(os.path.join('result', ckpt_folder))
         self.enc.eval()
         self.dec.eval()
         self.cvt.eval()
@@ -58,12 +64,12 @@ class KOVISMover(object):
         inC = F.to_tensor(inC)
         img = F.normalize(inC, [arg.mean], [arg.std])
         '''
-        img = torch.from_numpy(img[None, ...]).float().div(255).sub_(arg.mean).div_(arg.std)
+        img = torch.from_numpy(img[None, ...]).float().div(255).sub_(self.mean).div_(self.std)
         return img.unsqueeze(0)
 
-    def inference(self,imgs, visualize):
-        inL = self.img_proc(imgs[0], arg.im_size[0])
-        inR = self.img_proc(imgs[1], arg.im_size[0])
+    def inference(self,imgs, visualize, tilt=False):
+        inL = self.img_proc(imgs[0], self.im_size[0])
+        inR = self.img_proc(imgs[1], self.im_size[0])
         inL = inL.cuda()
         inR = inR.cuda()
         # forward-pass
@@ -72,9 +78,14 @@ class KOVISMover(object):
         depth, seg = self.dec(keypL[1])
         vec, speed = self.cvt(torch.cat((keypL[0], keypR[0]), dim=1))
         speed = torch.sigmoid(speed).detach().cpu().item()
-        speed = max(0.0, speed - 0.1)
-        vec = (vec / torch.norm(vec)).detach().cpu().numpy()
+        speed = max(0.00, speed - 0.1)
+        xyz = (vec[:3] / torch.norm(vec[:3])).detach().cpu().numpy()
+        if tilt:
+            rot = vec[3:].detach().cpu().numpy()
+        else:
+            rot = None
         if visualize:
+            # left
             keyp = keypL[1].detach().squeeze().cpu().numpy()
             keyps = np.zeros((inL.size(2), inL.size(3), 3), dtype=float)
             for j in range(keyp.shape[0]):
@@ -86,8 +97,23 @@ class KOVISMover(object):
             seg = (seg.squeeze().argmax(dim=0).detach().cpu().numpy() * 255. / (self.num_obj - 1)).astype(np.uint8)
             Image.fromarray(np.hstack((np.tile(img[:, :, None], [1, 1, 3]), keyps,
                                        np.tile(depth[:, :, None], [1, 1, 3]), np.tile(seg[:, :, None], [1, 1, 3])))). \
-                save('kovis/result.png')
-        return vec, speed
+                save('kovis/result_left.png')
+            # right
+            depth, seg = self.dec(keypR[1])
+            keyp = keypR[1].detach().squeeze().cpu().numpy()
+            keyps = np.zeros((inR.size(2), inR.size(3), 3), dtype=float)
+            for j in range(keyp.shape[0]):
+                keyps = keyps + np.tile(transform.resize(keyp[j], keyps.shape[:2])[:, :, np.newaxis], [1, 1, 3]) * \
+                        np.array(self.color[j]).reshape(1, 1, 3)
+            keyps = (keyps * 255).round().astype(np.uint8)
+            img = ((inR.detach().squeeze().cpu().numpy() * 0.25) * 255 + 128).round().clip(0, 255).astype(np.uint8)
+            depth = ((depth.detach().squeeze().cpu().numpy() * 0.25) * 255 + 128).round().clip(0, 255).astype(np.uint8)
+            seg = (seg.squeeze().argmax(dim=0).detach().cpu().numpy() * 255. / (self.num_obj - 1)).astype(np.uint8)
+            Image.fromarray(np.hstack((np.tile(img[:, :, None], [1, 1, 3]), keyps,
+                                       np.tile(depth[:, :, None], [1, 1, 3]), np.tile(seg[:, :, None], [1, 1, 3])))). \
+                save('kovis/result_right.png')
+
+        return xyz, rot, speed
 
 def main():
     kovis_mover = KOVISMover()

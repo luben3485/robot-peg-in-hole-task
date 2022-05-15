@@ -205,7 +205,7 @@ class CoarseMover(object):
             confidence = confidence[0].cpu().numpy()
             trans_of_pred = trans_of_pred[0].cpu().numpy()
             real_kpt_pred = (mean_kpt_pred * m) + centroid  # unit:mm
-            real_kpt_pred = real_kpt_pred.reshape(1, 3)
+            real_kpt_pred = real_kpt_pred.reshape(3, )
             real_kpt_x_pred = (mean_kpt_x_pred * m) + centroid  # unit:mm
             real_kpt_x_pred = real_kpt_x_pred.reshape(1, 3)
             dir_pred = real_kpt_pred - real_kpt_x_pred

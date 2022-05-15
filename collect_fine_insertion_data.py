@@ -92,7 +92,7 @@ def point2pixel(keypoint_in_camera, focal_x=309.019, focal_y=309.019, principal_
 
 
 def generate_one_im_anno(cnt, cam_name_list, peg_top, peg_bottom, hole_top, hole_bottom, hole_obj_bottom, rob_arm, im_data_path,
-                         delta_rotation, delta_translation, rel_delta_translation, gripper_pose, step_size, r_euler):
+                         delta_rotation, delta_translation, rel_delta_translation, gripper_pose, step_size, r_euler, r_euler_rel2world):
     # Get keypoint location
     peg_keypoint_top_pose = rob_arm.get_object_matrix(peg_top)
     peg_keypoint_bottom_pose = rob_arm.get_object_matrix(peg_bottom)
@@ -225,7 +225,8 @@ def generate_one_im_anno(cnt, cam_name_list, peg_top, peg_bottom, hole_top, hole
             # 'delta_rot_theta': rot_theta,
             'gripper_pose': gripper_pose.tolist(),
             'step_size': step_size,
-            'r_euler': r_euler.tolist()
+            'r_euler': r_euler.tolist(),
+            'r_euler_rel2world': r_euler_rel2world.tolist(),
             }
     return info
 
@@ -383,7 +384,8 @@ def main(args):
     cnt = 0
     iter = args.iter
     #cam_name = 'vision_eye_1'
-    cam_name_list = ['vision_eye_front', 'vision_eye_left', 'vision_eye_right']
+    #cam_name_list = ['vision_eye_front', 'vision_eye_left', 'vision_eye_right']
+    cam_name_list = ['vision_eye_front']
     peg_top = 'peg_dummy_top'
     peg_bottom = 'peg_dummy_bottom'
     peg_name = 'peg_in_arm'
@@ -623,18 +625,20 @@ def main(args):
                     rob_arm.finish()
                     print('skip', dist)
                     continue
-                #_, tilt_degree = random_tilt(rob_arm, ['UR5_ikTarget'], 0, 5)
+                _, tilt_degree = random_tilt(rob_arm, ['UR5_ikTarget'], 0, 5)
                 #print('tilt degree', tilt_degree)
                 gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
                 cnt_xyz = gripper_pose[:3, 3]
                 cnt_rot = gripper_pose[:3, :3]
                 delta_translation = pre_xyz - cnt_xyz
-                # pre <==> target
-                # cnt <==> source
+
                 cnt_rot_t = np.transpose(cnt_rot)
                 delta_rotation = np.dot(cnt_rot_t, pre_rot)
                 r = R.from_matrix(delta_rotation)
                 r_euler = r.as_euler('zyx', degrees=True)
+                delta_rotation_rel2world = np.dot(pre_rot, cnt_rot_t)
+                r_rel2world = R.from_matrix(delta_rotation_rel2world)
+                r_euler_rel2world = r_rel2world.as_euler('zyx', degrees=True)
                 print('iter: ' + str(i) + ' cnt: ' + str(cnt))
                 print('delta_translation', delta_translation)
                 print('delta_rotation', delta_rotation)
@@ -644,7 +648,7 @@ def main(args):
                 info = generate_one_im_anno(cnt, cam_name_list, peg_top, peg_bottom, hole_top, hole_bottom,
                                             hole_obj_bottom, rob_arm,
                                             im_data_path, delta_rotation, delta_translation, rel_delta_translation, gripper_pose, step_size,
-                                            r_euler)
+                                            r_euler, r_euler_rel2world)
                 #except:
                 #    continue
                 info_dic[cnt] = info

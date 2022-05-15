@@ -91,7 +91,7 @@ def point2pixel(keypoint_in_camera, focal_x=309.019, focal_y=309.019, principal_
 
 
 def generate_one_im_anno(cnt, cam_name_list, peg_top, peg_bottom, hole_top, hole_bottom, hole_obj_bottom, rob_arm, im_data_path,
-                         delta_rotation, delta_translation, gripper_pose, step_size, r_euler):
+                         delta_rotation, delta_translation, gripper_pose, step_size, r_euler, r_euler_rel2world):
     # Get keypoint location
     peg_keypoint_top_pose = rob_arm.get_object_matrix(peg_top)
     peg_keypoint_bottom_pose = rob_arm.get_object_matrix(peg_bottom)
@@ -223,7 +223,8 @@ def generate_one_im_anno(cnt, cam_name_list, peg_top, peg_bottom, hole_top, hole
             # 'delta_rot_theta': rot_theta,
             'gripper_pose': gripper_pose.tolist(),
             'step_size': step_size,
-            'r_euler': r_euler.tolist()
+            'r_euler': r_euler.tolist(),
+            'r_euler_rel2world': r_euler_rel2world.tolist(),
             }
     return info
 
@@ -355,15 +356,41 @@ def main(args):
     cnt = 0
     iter = args.iter
     #cam_name = 'vision_eye_left'
-    cam_name_list = ['vision_eye_front', 'vision_eye_left', 'vision_eye_right']
+    #cam_name_list = ['vision_eye_front', 'vision_eye_left', 'vision_eye_right']
+    cam_name_list = ['vision_eye_front']
     peg_top = 'peg_dummy_top'
     peg_bottom = 'peg_dummy_bottom'
     peg_name = 'peg_in_arm'
-    hole_setting = {'square': ['square', 'hole_keypoint_top0', 'hole_keypoint_bottom0', 'hole_keypoint_obj_bottom0'],
-                    'small_square': ['small_square', 'hole_keypoint_top1', 'hole_keypoint_bottom1', 'hole_keypoint_obj_bottom1'],
-                    'circle': ['circle', 'hole_keypoint_top2', 'hole_keypoint_bottom2', 'hole_keypoint_obj_bottom2'],
-                    'rectangle': ['rectangle', 'hole_keypoint_top3', 'hole_keypoint_bottom3', 'hole_keypoint_obj_bottom3'],
-                    'triangle': ['triangle', 'hole_keypoint_top4', 'hole_keypoint_bottom4', 'hole_keypoint_obj_bottom4']}
+    hole_setting = {'square_7x10x10': ['square_7x10x10', 'hole_keypoint_top0', 'hole_keypoint_bottom0',
+                                       'hole_keypoint_obj_bottom0'],
+                    'square_7x11x11': ['square_7x11x11', 'hole_keypoint_top1', 'hole_keypoint_bottom1',
+                                       'hole_keypoint_obj_bottom1'],
+                    'square_7x12x12': ['square_7x12x12', 'hole_keypoint_top2', 'hole_keypoint_bottom2',
+                                       'hole_keypoint_obj_bottom2'],
+                    'square_7x13x13': ['square_7x13x13', 'hole_keypoint_top3', 'hole_keypoint_bottom3',
+                                       'hole_keypoint_obj_bottom3'],
+                    'square_7x14x14': ['square_7x14x14', 'hole_keypoint_top4', 'hole_keypoint_bottom4',
+                                       'hole_keypoint_obj_bottom4'],
+                    'rectangle_7x8x11': ['rectangle_7x8x11', 'hole_keypoint_top5', 'hole_keypoint_bottom5',
+                                         'hole_keypoint_obj_bottom5'],
+                    'rectangle_7x9x12': ['rectangle_7x9x12', 'hole_keypoint_top6', 'hole_keypoint_bottom6',
+                                         'hole_keypoint_obj_bottom6'],
+                    'rectangle_7x10x13': ['rectangle_7x10x13', 'hole_keypoint_top7', 'hole_keypoint_bottom7',
+                                          'hole_keypoint_obj_bottom7'],
+                    'rectangle_7x11x14': ['rectangle_7x11x14', 'hole_keypoint_top8', 'hole_keypoint_bottom8',
+                                          'hole_keypoint_obj_bottom8'],
+                    'rectangle_7x12x15': ['rectangle_7x12x15', 'hole_keypoint_top9', 'hole_keypoint_bottom9',
+                                          'hole_keypoint_obj_bottom9'],
+                    'circle_7x10': ['circle_7x10', 'hole_keypoint_top10', 'hole_keypoint_bottom10',
+                                    'hole_keypoint_obj_bottom10'],
+                    'circle_7x11': ['circle_7x11', 'hole_keypoint_top11', 'hole_keypoint_bottom11',
+                                    'hole_keypoint_obj_bottom11'],
+                    'circle_7x12': ['circle_7x12', 'hole_keypoint_top12', 'hole_keypoint_bottom12',
+                                    'hole_keypoint_obj_bottom12'],
+                    'circle_7x13': ['circle_7x13', 'hole_keypoint_top13', 'hole_keypoint_bottom13',
+                                    'hole_keypoint_obj_bottom13'],
+                    'circle_7x14': ['circle_7x14', 'hole_keypoint_top14', 'hole_keypoint_bottom14',
+                                    'hole_keypoint_obj_bottom14'], }
     selected_hole = args.hole
     hole_name = hole_setting[selected_hole][0]
     hole_top = hole_setting[selected_hole][1]
@@ -546,16 +573,18 @@ def main(args):
                     print('skip', dist)
                     continue
                 '''
-                gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
-                cnt_xyz = gripper_pose[:3, 3]
-                cnt_rot = gripper_pose[:3, :3]
+                hole_keypoint_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
+                cnt_xyz = hole_keypoint_top_pose[:3, 3]
+                cnt_rot = hole_keypoint_top_pose[:3, :3]
                 delta_translation = pre_xyz - cnt_xyz
-                # pre <==> target
-                # cnt <==> source
+
                 cnt_rot_t = np.transpose(cnt_rot)
                 delta_rotation = np.dot(cnt_rot_t, pre_rot)
                 r = R.from_matrix(delta_rotation)
                 r_euler = r.as_euler('zyx', degrees=True)
+                delta_rotation_rel2world = np.dot(pre_rot, cnt_rot_t)
+                r_rel2world = R.from_matrix(delta_rotation_rel2world)
+                r_euler_rel2world = r_rel2world.as_euler('zyx', degrees=True)
                 print('iter: ' + str(i) + ' cnt: ' + str(cnt))
                 print('delta_translation', delta_translation)
                 print('delta_rotation', delta_rotation)
@@ -565,7 +594,7 @@ def main(args):
                 try:
                     info = generate_one_im_anno(cnt, cam_name_list, peg_top, peg_bottom, hole_top, hole_bottom, hole_obj_bottom, rob_arm,
                                             im_data_path, delta_rotation, delta_translation, gripper_pose, step_size,
-                                            r_euler)
+                                            r_euler, r_euler_rel2world)
                 except:
                     continue
                 info_dic[cnt] = info
