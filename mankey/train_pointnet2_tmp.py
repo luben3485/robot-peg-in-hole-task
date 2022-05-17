@@ -5,7 +5,7 @@ Date: Nov 2019
 
 import os
 '''HYPER PARAMETER'''
-os.environ["CUDA_VISIBLE_DEVICES"] = '6'
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 import sys
 import torch
 from torch.utils.data import DataLoader
@@ -38,7 +38,7 @@ def parse_args():
     parser = argparse.ArgumentParser('training')
     parser.add_argument('--use_cpu', action='store_true', default=False, help='use cpu mode')
     #parser.add_argument('--gpu', type=str, default='0', help='specify gpu device')
-    parser.add_argument('--batch_size', type=int, default=8, help='batch size in training')
+    parser.add_argument('--batch_size', type=int, default=12, help='batch size in training')
     parser.add_argument('--model', default='pointnet2_kpts', help='model name [default: pointnet_cls]')
     parser.add_argument('--out_channel', default=9, type=int)
     parser.add_argument('--epoch', default=600, type=int, help='number of epoch in training')

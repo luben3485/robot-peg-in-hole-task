@@ -1,5 +1,7 @@
 .ipynb_checkpoints
 __pycache__/
+*.py[cod]
+
 /mover/runs/
 /mover/ckpnt*
 /mankey/experiment/ckpnt*
