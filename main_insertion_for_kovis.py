@@ -11,6 +11,7 @@ import os
 import sys
 import time
 import copy
+from config.hole_setting import hole_setting
 sys.path.append('/home/luben/robot-peg-in-hole-task')
 
 def quaternion_matrix(quaternion):
@@ -90,7 +91,7 @@ def specific_tilt(rob_arm, obj_name_list, rot_dir, tilt_degree):
         obj_quat = [obj_quat[1], obj_quat[2], obj_quat[3], obj_quat[0]]  # change to [x,y,z,w]
         rob_arm.set_object_quat(obj_name, obj_quat)
 
-def predict_xyz(cam_name_list, mover, rob_arm, tilt):
+def predict_xyzrot(cam_name_list, mover, rob_arm, tilt):
     assert len(cam_name_list) == 2
     imgs = []
     for cam_name in cam_name_list:
@@ -108,33 +109,19 @@ def main():
     if not os.path.exists(benchmark_folder):
         os.makedirs(benchmark_folder)
     tilt = False
-    kovis_mover = KOVISMover(ckpt_folder = 'insert-0506')
+    kovis_mover = KOVISMover(ckpt_folder='insert-0506') #tilt 0512-2 notilt 0506
     iter_num = 250
     cam_name_list = ['vision_eye_left', 'vision_eye_right']
     peg_top = 'peg_dummy_top'
     peg_bottom = 'peg_dummy_bottom'
     peg_name = 'peg_in_arm'
-    hole_setting = {'square_7x10x10': ['square_7x10x10', 'hole_keypoint_top0', 'hole_keypoint_bottom0', 'hole_keypoint_obj_bottom0'],
-                    'square_7x11x11': ['square_7x11x11', 'hole_keypoint_top1', 'hole_keypoint_bottom1', 'hole_keypoint_obj_bottom1'],
-                    'square_7x12x12': ['square_7x12x12', 'hole_keypoint_top2', 'hole_keypoint_bottom2', 'hole_keypoint_obj_bottom2'],
-                    'square_7x13x13': ['square_7x13x13', 'hole_keypoint_top3', 'hole_keypoint_bottom3', 'hole_keypoint_obj_bottom3'],
-                    'square_7x14x14': ['square_7x14x14', 'hole_keypoint_top4', 'hole_keypoint_bottom4', 'hole_keypoint_obj_bottom4'],
-                    'rectangle_7x8x11': ['rectangle_7x8x11', 'hole_keypoint_top5', 'hole_keypoint_bottom5', 'hole_keypoint_obj_bottom5'],
-                    'rectangle_7x9x12': ['rectangle_7x9x12', 'hole_keypoint_top6', 'hole_keypoint_bottom6', 'hole_keypoint_obj_bottom6'],
-                    'rectangle_7x10x13': ['rectangle_7x10x13', 'hole_keypoint_top7', 'hole_keypoint_bottom7', 'hole_keypoint_obj_bottom7'],
-                    'rectangle_7x11x14': ['rectangle_7x11x14', 'hole_keypoint_top8', 'hole_keypoint_bottom8', 'hole_keypoint_obj_bottom8'],
-                    'rectangle_7x12x15': ['rectangle_7x12x15', 'hole_keypoint_top9', 'hole_keypoint_bottom9', 'hole_keypoint_obj_bottom9'],
-                    'circle_7x10': ['circle_7x10', 'hole_keypoint_top10', 'hole_keypoint_bottom10', 'hole_keypoint_obj_bottom10'],
-                    'circle_7x11': ['circle_7x11', 'hole_keypoint_top11', 'hole_keypoint_bottom11', 'hole_keypoint_obj_bottom11'],
-                    'circle_7x12': ['circle_7x12', 'hole_keypoint_top12', 'hole_keypoint_bottom12', 'hole_keypoint_obj_bottom12'],
-                    'circle_7x13': ['circle_7x13', 'hole_keypoint_top13', 'hole_keypoint_bottom13', 'hole_keypoint_obj_bottom13'],
-                    'circle_7x14': ['circle_7x14', 'hole_keypoint_top14', 'hole_keypoint_bottom14', 'hole_keypoint_obj_bottom14'], }
 
     #selected_hole_list = ['square_7x10x10', 'square_7x11x11', 'square_7x12x12', 'square_7x13x13', 'square_7x14x14']
     #selected_hole_list = ['rectangle_7x8x11', 'rectangle_7x9x12', 'rectangle_7x10x13', 'rectangle_7x11x14', 'rectangle_7x12x15']
     #selected_hole_list = ['circle_7x10', 'circle_7x11', 'circle_7x12', 'circle_7x13', 'circle_7x14']
-    #selected_hole_list = ['square', 'small_square', 'circle', 'rectangle', 'triangle']
-    selected_hole_list = ['square_7x12x12', 'square_7x10x10', 'square_7x14x14', 'rectangle_7x8x11', 'rectangle_7x10x13', 'rectangle_7x12x15', 'circle_7x10', 'circle_7x12', 'circle_7x14']
+    #selected_hole_list = ['octagon_7x5', 'pentagon_7x7', 'hexagon_7x6']
+    #selected_hole_list = ['square_7x12x12', 'square_7x10x10', 'square_7x14x14', 'rectangle_7x8x11', 'rectangle_7x10x13', 'rectangle_7x12x15', 'circle_7x10', 'circle_7x12', 'circle_7x14']
+    selected_hole_list = ['square_7x12x12']
     for selected_hole in selected_hole_list:
         f = open(os.path.join(benchmark_folder, "hole_score.txt"), "a")
         rob_arm = SingleRoboticArm()
@@ -251,7 +238,8 @@ def main():
             while True:
                 ### start
                 gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
-                xyz, rot, speed = predict_xyz(cam_name_list, kovis_mover, rob_arm, tilt)
+                xyz, rot, speed = predict_xyzrot(cam_name_list, kovis_mover, rob_arm, tilt)
+                print(rot)
                 if tilt:
                     if speed > 0.7:
                         delta_xyz_pred = xyz * speed * 0.01
@@ -262,8 +250,9 @@ def main():
                     delta_rot_pred = r.as_matrix()
                     gripper_pose[:3, :3] = np.dot(gripper_pose[:3, :3], delta_rot_pred)
                 else:
+                    print(speed)
                     if speed > 0.7:
-                        delta_xyz_pred = xyz * speed * 0.01
+                        delta_xyz_pred = xyz * speed * 0.015
                     else:
                         delta_xyz_pred = xyz * speed * 0.001
                     gripper_pose[:3, 3] += delta_xyz_pred
@@ -279,14 +268,14 @@ def main():
                 hole_dir = rob_arm.get_object_matrix(hole_top)[:3, 0].reshape(3, 1)
                 dot_product = np.dot(peg_dir, hole_dir)
                 angle = math.degrees(math.acos(dot_product / (np.linalg.norm(peg_dir) * np.linalg.norm(hole_dir))))
-                if angle > 5 and not tilt:
-                    print('crash! Angle is too large')
+                if angle > 1.0 and not tilt:
+                    print('break! Angle is too large')
                     break
                 if angle > 80 and tilt:
-                    print('crash! Angle is too large')
+                    print('break! Angle is too large')
                     break
-                if cnt >= 25:
-                    print('crash! Too long')
+                if cnt >= 20:
+                    print('break! Too long')
                     break
                 if speed > 0.7:
                     cnt_end = 0
@@ -318,7 +307,7 @@ def main():
             dist = np.linalg.norm(peg_keypoint_bottom_pose[:3, 3] - hole_keypoint_bottom_pose[:3, 3])
             print('dist', dist)
             #f.write(str(tilt_degree) + ' ' + str(dist) + '\n')
-            if dist < 0.010:
+            if dist < 0.025:
                 print('success!')
                 insertion_succ_list.append(1)
             else:

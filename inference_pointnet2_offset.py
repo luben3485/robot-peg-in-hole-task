@@ -217,7 +217,7 @@ class FineMover(object):
 
             return delta_xyz_pred, delta_rot_pred, delta_rot_euler_pred, loss.item()
 
-    def inference_from_pcd(self, xyz, centroid, m):
+    def inference_from_pcd(self, xyz, centroid, m, method='fine'):
         # input param: xyz Tensor(1, C, N)
         self.network = self.network.eval()
         with torch.no_grad():
@@ -230,9 +230,13 @@ class FineMover(object):
             '''
             delta_xyz_pred, delta_rot_euler_pred = self.network(xyz)
             delta_xyz_pred = delta_xyz_pred[0].cpu().numpy()
-            delta_xyz_pred = delta_xyz_pred / 200
             delta_rot_euler_pred = delta_rot_euler_pred[0].cpu().numpy()
-            delta_rot_euler_pred = delta_rot_euler_pred * 5
+            if method=='coarse':
+                delta_xyz_pred = delta_xyz_pred / 20
+                delta_rot_euler_pred = delta_rot_euler_pred * 50
+            elif method=='fine':
+                delta_xyz_pred = delta_xyz_pred / 200
+                delta_rot_euler_pred = delta_rot_euler_pred * 5
             r = R.from_euler('zyx', delta_rot_euler_pred, degrees=True)
             delta_rot_pred = r.as_matrix()
 
@@ -240,11 +244,11 @@ class FineMover(object):
 
 if __name__ == '__main__':
     crop_pcd = True
-    model_path = 'offset/2022-04-15_00-21'
+    model_path = 'offset/2022-05-18_00-29'
     mover = FineMover(model_path=model_path, model_name='pointnet2_offset',
-                               checkpoint_name='best_model_e_98.pth', use_cpu=False, out_channel=9)
+                               checkpoint_name='best_model_e_60.pth', use_cpu=False, out_channel=9)
     #data_root = '/home/luben/data/pdc/logs_proto/2022-02-26-test/fine_insertion_square_2022-02-26-test/processed'
-    data_root = '/home/luben/data/pdc/logs_proto/fine_insertion_square_2022-04-12-test/processed'
+    data_root = '/home/luben/data/pdc/logs_proto/fine_insertion_square_7x12x12_2022-05-15-test/processed'
     pcd_seg_heatmap_kpt_folder_path = os.path.join(data_root, 'pcd_seg_heatmap_3kpt')
 
     with open(os.path.join(data_root, 'peg_in_hole.yaml'), 'r') as f_r:
@@ -261,7 +265,7 @@ if __name__ == '__main__':
         if crop_pcd == True:
             gripper_pos = np.array(data[key]['gripper_pose'])[:3,3]
             crop_xyz = []
-            bound = 0.04
+            bound = 0.05
             for xyz in real_pcd:
                 x = xyz[0] / 1000  # unit:m
                 y = xyz[1] / 1000  # unit:m
@@ -271,8 +275,8 @@ if __name__ == '__main__':
                         z >= gripper_pos[2] - bound and z <= gripper_pos[2] + bound:
                     crop_xyz.append(xyz)
             crop_xyz = np.array(crop_xyz).reshape(-1, 3)
-            if crop_xyz.shape[0] >= 2400:
-                crop_xyz = crop_xyz[:2400, :]
+            if crop_xyz.shape[0] >= 2048:
+                crop_xyz = crop_xyz[:2048, :]
             pcd = copy.deepcopy(crop_xyz)
             centroid = np.mean(pcd, axis=0)
             pcd = pcd - centroid

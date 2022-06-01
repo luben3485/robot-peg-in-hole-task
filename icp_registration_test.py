@@ -10,6 +10,7 @@ import math
 import copy
 from inference_pointnet2_kpts import CoarseMover
 from transforms3d.quaternions import mat2quat, quat2axangle, quat2mat, qmult
+from config.hole_setting import hole_setting
 
 def parse_args():
     '''PARAMETERS'''
@@ -285,12 +286,12 @@ def coarse_controller_with_icp(rob_arm, cam_name_list, trans_init, hole_top, hol
     print(source)
     target = o3d.geometry.PointCloud()
     target.points = o3d.utility.Vector3dVector(scene_xyz/1000)
-    threshold = 0.02
+    threshold = 0.9 # 0.02
     reg_p2p = o3d.registration.registration_icp(
         source, target, threshold, trans_init,
         o3d.registration.TransformationEstimationPointToPoint())
 
-    draw_registration_result(source, target, reg_p2p.transformation)
+    #draw_registration_result(source, target, reg_p2p.transformation)
     transformation = copy.deepcopy(reg_p2p.transformation)
     #print(transformation)
     '''
@@ -320,10 +321,14 @@ def predict_kpts_no_oft_from_multiple_camera(cam_name_list, mover, rob_arm):
     real_kpt_pred = real_kpt_pred / 1000  # unit: mm to m
     trans_init = np.zeros((4, 4))
     trans_init[3, 3] = 1.0
-    trans_init[:3, :3] = np.dot(rot_mat_pred, np.transpose(np.array([[0, -1, 0],[0, 0, -1],[1, 0, 0]])))
-    #trans_init[:3, :3] = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-    trans_init[:3, 3] = real_kpt_pred - np.dot(trans_init[:3, :3], np.array([0., 0, 0.07]).reshape(3, 1))[:, 0]
 
+    ''' rot_mat_pred is related to gripper
+    trans_init[:3, :3] = np.dot(rot_mat_pred, np.transpose(np.array([[0, -1, 0],[0, 0, -1],[1, 0, 0]])))
+    trans_init[:3, 3] = real_kpt_pred - np.dot(trans_init[:3, :3], np.array([0., 0, 0.07]).reshape(3, 1))[:, 0]
+    '''
+    trans_init[:3, :3] = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    #trans_init[:3, 3] = real_kpt_pred - np.dot(trans_init[:3, :3], np.array([0., 0, 0.07]).reshape(3, 1))[:, 0]
+    trans_init[:3, 3] = np.array([0.1, -0.5, 0.035]) - np.dot(trans_init[:3, :3], np.array([0., 0, 0.07]).reshape(3, 1))[:, 0]
     return trans_init
 
 def main():
@@ -336,40 +341,35 @@ def main():
     assert False
     '''
     #save_template_hole_pcd()
-    hole_setting = {'square': ['square', 'hole_keypoint_top0', 'hole_keypoint_bottom0', 'hole_keypoint_obj_bottom0'],
-                    'small_square': ['small_square', 'hole_keypoint_top1', 'hole_keypoint_bottom1',
-                                     'hole_keypoint_obj_bottom1'],
-                    'circle': ['circle', 'hole_keypoint_top2', 'hole_keypoint_bottom2', 'hole_keypoint_obj_bottom2'],
-                    'rectangle': ['rectangle', 'hole_keypoint_top3', 'hole_keypoint_bottom3',
-                                  'hole_keypoint_obj_bottom3'],
-                    'triangle': ['triangle', 'hole_keypoint_top4', 'hole_keypoint_bottom4',
-                                 'hole_keypoint_obj_bottom4']}
+
     peg_top = 'peg_dummy_top'
     peg_bottom = 'peg_dummy_bottom'
     peg_name = 'peg_in_arm'
     #cam_name_list = ['vision_eye_left', 'vision_eye_right']
     cam_name_list = ['vision_eye_front']
+    tilt = True
     benchmark_folder = os.path.join('pcd_benchmark', 'icp')
     if not os.path.exists(benchmark_folder):
         os.makedirs(benchmark_folder)
     f = open(os.path.join(benchmark_folder, "hole_score.txt"), "w")
-    coarse_mover = CoarseMover(model_path='kpts/2022-04-01_14-58', model_name='pointnet2_kpts', checkpoint_name='best_model_e_90.pth', use_cpu=False, out_channel=9)
+    coarse_mover = CoarseMover(model_path='kpts/2022-05-17_21-15', model_name='pointnet2_kpts', checkpoint_name='best_model_e_101.pth', use_cpu=False, out_channel=9)
     #fine_mover = Mover(model_path='kpts/2022-04-01_15-11', model_name='pointnet2_kpts', checkpoint_name='best_model_e_43.pth', use_cpu=False, out_channel=9)
 
     #selected_hole_list = ['square', 'small_square', 'circle', 'rectangle', 'triangle']
-    selected_hole_list = ['square']
+    selected_hole_list = ['square_7x11_5x11_5']
     for selected_hole in selected_hole_list:
         hole_name = hole_setting[selected_hole][0]
         hole_top = hole_setting[selected_hole][1]
         hole_bottom = hole_setting[selected_hole][2]
         hole_obj_bottom = hole_setting[selected_hole][3]
         insertion_succ_list = []
-        for i in range(100):
+        for i in range(250):
             print('='*10 + 'iter:' + str(i) + '='*10)
             rob_arm = SingleRoboticArm()
             hole_pos = [random.uniform(0, 0.2), random.uniform(-0.45, -0.55), +3.5001e-02]
             rob_arm.set_object_position(hole_name, hole_pos)
-            _, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 50)
+            if tilt:
+                _, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 50)
             '''
             # start pose
             delta_move = np.array([random.uniform(-0.03, 0.03), random.uniform(-0.03, 0.03), random.uniform(0.10, 0.12)])
@@ -410,7 +410,7 @@ def main():
             '''
             # insertion
             gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
-            gripper_pose[:3, 3] -= gripper_pose[:3, 0] * 0.05  # x-axis
+            gripper_pose[:3, 3] -= gripper_pose[:3, 0] * 0.08  # x-axis
             rob_arm.movement(gripper_pose)
             # record insertion
             peg_keypoint_bottom_pose = rob_arm.get_object_matrix(obj_name=peg_bottom)

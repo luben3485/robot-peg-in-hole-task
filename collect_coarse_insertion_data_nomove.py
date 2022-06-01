@@ -562,8 +562,8 @@ def main(args):
             if move_record == True:
                 # only record start point
                 gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
-                pre_xyz = gripper_pose[:3, 3]
-                pre_rot = gripper_pose[:3, :3]
+                cnt_xyz = gripper_pose[:3, 3]
+                cnt_rot = gripper_pose[:3, :3]
                 '''
                 rob_arm.movement(target_pose)
                 gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
@@ -574,8 +574,8 @@ def main(args):
                     continue
                 '''
                 hole_keypoint_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
-                cnt_xyz = hole_keypoint_top_pose[:3, 3]
-                cnt_rot = hole_keypoint_top_pose[:3, :3]
+                pre_xyz = hole_keypoint_top_pose[:3, 3]
+                pre_rot = hole_keypoint_top_pose[:3, :3]
                 delta_translation = pre_xyz - cnt_xyz
 
                 cnt_rot_t = np.transpose(cnt_rot)

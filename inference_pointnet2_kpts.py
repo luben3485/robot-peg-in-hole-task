@@ -219,13 +219,13 @@ class CoarseMover(object):
                 return real_kpt_pred, dir_pred, rot_mat_pred, confidence
 
 if __name__ == '__main__':
-    add_noise = True
+    add_noise = False
     use_offset = False
-    model_path = 'kpts/2022-04-25_07-26'
+    model_path = 'kpts/2022-05-17_21-15'
     mover = CoarseMover(model_path=model_path, model_name='pointnet2_kpts',
-                               checkpoint_name='best_model_e_60.pth', use_cpu=False, out_channel=9)
+                               checkpoint_name='best_model_e_76.pth', use_cpu=False, out_channel=9)
     #data_root = '/home/luben/data/pdc/logs_proto/2022-02-26-test/fine_insertion_square_2022-02-26-test/processed'
-    data_root = '/home/luben/data/pdc/logs_proto/coarse_insertion_square_2022-03-28-test/processed'
+    data_root = '/home/luben/data/pdc/logs_proto/coarse_insertion_square_7x12x12_2022-05-15-test/processed'
     pcd_seg_heatmap_kpt_folder_path = os.path.join(data_root, 'pcd_seg_heatmap_3kpt')
     visualize_kpt_path = os.path.join(data_root, 'visualize_kpt')
     visualize_heatmap_path = os.path.join(data_root, 'visualize_heatmap')
@@ -263,6 +263,7 @@ if __name__ == '__main__':
         pcd = torch.Tensor(pcd)
         pcd = pcd.transpose(2, 1)
         real_kpt_pred, dir_pred, rot_mat_pred, confidence = mover.inference_from_pcd(pcd, centroid, m, use_offset=use_offset)
+        real_kpt_pred = real_kpt_pred.reshape(1, 3)
         #print('hole keypoint prediction:', real_kpt_pred)
 
         # compute keypoint error
