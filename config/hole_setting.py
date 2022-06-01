@@ -18,8 +18,8 @@ hole_setting = {'square_7x10x10': ['square_7x10x10', 'hole_keypoint_top0', 'hole
                     'hexagon_7x6': ['hexagon_7x6', 'hole_keypoint_top17', 'hole_keypoint_bottom17', 'hole_keypoint_obj_bottom17'],
                     'square_7x11_5x11_5': ['square_7x11_5x11_5', 'hole_keypoint_top18', 'hole_keypoint_bottom18', 'hole_keypoint_obj_bottom18'],
                     'square_7x12_5x12_5': ['square_7x12_5x12_5', 'hole_keypoint_top19', 'hole_keypoint_bottom19', 'hole_keypoint_obj_bottom19'],
-                    'rectangle_7x11_5x12': ['rectangle_7x9x12', 'hole_keypoint_top20', 'hole_keypoint_bottom20', 'hole_keypoint_obj_bottom20'],
-                    'rectangle_7x12x11_5': ['rectangle_7x9x12', 'hole_keypoint_top21', 'hole_keypoint_bottom21', 'hole_keypoint_obj_bottom21'],
+                    'rectangle_7x11_5x12': ['rectangle_7x11_5x12', 'hole_keypoint_top20', 'hole_keypoint_bottom20', 'hole_keypoint_obj_bottom20'],
+                    'rectangle_7x12x11_5': ['rectangle_7x12x11_5', 'hole_keypoint_top21', 'hole_keypoint_bottom21', 'hole_keypoint_obj_bottom21'],
                     'rectangle_7x9x13': ['rectangle_7x9x13', 'hole_keypoint_top22', 'hole_keypoint_bottom22', 'hole_keypoint_obj_bottom22'],
                     'rectangle_7x10x12': ['rectangle_7x10x12', 'hole_keypoint_top23', 'hole_keypoint_bottom23', 'hole_keypoint_obj_bottom23'],
                     'rectangle_7x12x13': ['rectangle_7x12x13', 'hole_keypoint_top24', 'hole_keypoint_bottom24', 'hole_keypoint_obj_bottom24'],}
