@@ -16,10 +16,11 @@ def parse_args():
     '''PARAMETERS'''
     parser = argparse.ArgumentParser()
     parser.add_argument('--iter', type=int, default=3, help='nb of input data')
-    parser.add_argument('--date', type=str, default='2022-06-01-notilt-test', help='date')
+    parser.add_argument('--date', type=str, default='2022-06-16-notilt-test', help='date')
     parser.add_argument('--data_root', type=str, default='/home/luben/data/kovis', help='data root path')
     parser.add_argument('--data_type', type=str, default='train', help='data type')
     parser.add_argument('--tilt', action='store_true', default=False, help=' ')
+    parser.add_argument('--yaw', action='store_true', default=False, help=' ')
 
     return parser.parse_args()
 args = parse_args()
@@ -35,7 +36,10 @@ class CollectInsert(object):
         self.peg_top = 'peg_dummy_top'
         self.peg_bottom = 'peg_dummy_bottom'
         self.peg_name = 'peg_in_arm'
-        self.selected_hole_list = ['square_7x12x12', 'square_7x13x13', 'rectangle_7x9x12', 'rectangle_7x10x13']
+        ### for round hole
+        #self.selected_hole_list = ['square_7x12x12', 'square_7x13x13', 'rectangle_7x9x12', 'rectangle_7x10x13']
+        ### for square hole
+        self.selected_hole_list = ['square_7x12x12_squarehole', 'square_7x13x13_squarehole', 'rectangle_7x9x12_squarehole', 'rectangle_7x10x13_squarehole']
         # cam
         self.rgbd_cam = ['vision_eye_left', 'vision_eye_right']
         self.seg_peg_cam = ['vision_eye_left_peg', 'vision_eye_right_peg']
@@ -47,6 +51,7 @@ class CollectInsert(object):
         self.max_speed = 0.022
         self.start_offset = [0, 0, 0.02]
         self.tilt = args.tilt
+        self.yaw = args.yaw
 
         if not os.path.exists(os.path.join(self.data_root, self.data_folder, self.data_type)):
             os.makedirs(os.path.join(self.data_root, self.data_folder, self.data_type))
@@ -63,6 +68,8 @@ class CollectInsert(object):
         hole_pos = np.array([random.uniform(0.0, 0.2), random.uniform(-0.45, -0.55), 0.035])
         self.rob_arm.set_object_position(hole_name, hole_pos)
         self.rob_arm.set_object_quat(hole_name, self.origin_hole_quat)
+        if self.yaw:
+            self.random_yaw([hole_name], degree=45)
         if self.tilt:
             self.random_tilt([hole_name], 0, 50)
         # set start pose
@@ -79,7 +86,7 @@ class CollectInsert(object):
         speed = np.random.uniform(self.min_speed, self.max_speed)
         vec = np.random.rand(3) - 0.5
         vec = vec / np.linalg.norm(vec)
-        if self.tilt:
+        if self.tilt or self.yaw:
             # for move
             source_rot = self.rob_arm.get_object_matrix(obj_name='UR5_ikTarget')[:3, :3]
             source_rot_t = np.transpose(source_rot)
@@ -105,7 +112,8 @@ class CollectInsert(object):
             #robot_pose[:3, 3] += vec * speed
             print(robot_pose[:3, :3])
             robot_pose[:3, 3] = robot_pose[:3, 3] + (robot_pose[:3, 0] * vec[0] + robot_pose[:3, 1] * vec[1] + robot_pose[:3, 2] * vec[2]) * speed
-            if self.tilt:
+
+            if self.tilt or self.yaw:
                 rot = np.dot(robot_pose[:3, :3], r_mat)
                 robot_pose[:3, :3] = rot
             self.rob_arm.movement(robot_pose)
@@ -172,6 +180,24 @@ class CollectInsert(object):
             self.rob_arm.set_object_quat(obj_name, obj_quat)
 
         return rot_dir, tilt_degree
+
+    def random_yaw(self, obj_name_list, degree=45):
+        for obj_name in obj_name_list:
+            yaw_degree = random.uniform(-math.radians(degree), math.radians(degree))
+            rot_dir = self.rob_arm.get_object_matrix(obj_name)[:3, 0]
+            if obj_name in ['pentagon_7x7', 'rectangle_7x9x12_squarehole', 'rectangle_7x10x13_squarehole']:
+                rot_dir = self.rob_arm.get_object_matrix(obj_name)[:3, 1]
+            w = math.cos(yaw_degree / 2)
+            x = math.sin(yaw_degree / 2) * rot_dir[0]
+            y = math.sin(yaw_degree / 2) * rot_dir[1]
+            z = math.sin(yaw_degree / 2) * rot_dir[2]
+            rot_quat = [w, x, y, z]
+
+            obj_quat = self.rob_arm.get_object_quat(obj_name)  # [x,y,z,w]
+            obj_quat = [obj_quat[3], obj_quat[0], obj_quat[1], obj_quat[2]]  # change to [w,x,y,z]
+            obj_quat = qmult(rot_quat, obj_quat)  # [w,x,y,z]
+            obj_quat = [obj_quat[1], obj_quat[2], obj_quat[3], obj_quat[0]]  # change to [x,y,z,w]
+            self.rob_arm.set_object_quat(obj_name, obj_quat)
 
     def save_images(self, sample, step):
         seg_folder_path = [os.path.join(self.data_root, self.data_folder, self.data_type, 'left/segme'),

@@ -77,6 +77,24 @@ def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
 
     return rot_dir, tilt_degree
 
+def random_yaw(rob_arm, obj_name_list, degree=45):
+    for obj_name in obj_name_list:
+        yaw_degree = random.uniform(-math.radians(degree), math.radians(degree))
+        rot_dir = rob_arm.get_object_matrix(obj_name)[:3, 0]
+        if obj_name in ['pentagon_7x7', 'rectangle_7x9x12_squarehole', 'rectangle_7x10x13_squarehole']:
+            rot_dir = rob_arm.get_object_matrix(obj_name)[:3, 1]
+        w = math.cos(yaw_degree / 2)
+        x = math.sin(yaw_degree / 2) * rot_dir[0]
+        y = math.sin(yaw_degree / 2) * rot_dir[1]
+        z = math.sin(yaw_degree / 2) * rot_dir[2]
+        rot_quat = [w, x, y, z]
+
+        obj_quat = rob_arm.get_object_quat(obj_name)  # [x,y,z,w]
+        obj_quat = [obj_quat[3], obj_quat[0], obj_quat[1 ], obj_quat[2]]  # change to [w,x,y,z]
+        obj_quat = qmult(rot_quat, obj_quat)  # [w,x,y,z]
+        obj_quat = [obj_quat[1], obj_quat[2], obj_quat[3], obj_quat[0]]  # change to [x,y,z,w]
+        rob_arm.set_object_quat(obj_name, obj_quat)
+
 def specific_tilt(rob_arm, obj_name_list, rot_dir, tilt_degree):
     rot_dir = rot_dir / np.linalg.norm(rot_dir)
     w = math.cos(math.radians(tilt_degree / 2))
@@ -109,8 +127,9 @@ def main():
     if not os.path.exists(benchmark_folder):
         os.makedirs(benchmark_folder)
     tilt = False
-    kovis_mover = KOVISMover(ckpt_folder='insert-0506') #tilt 0512-2 notilt 0506
-    iter_num = 250
+    yaw = True
+    kovis_mover = KOVISMover(ckpt_folder='insert-0512-2') #tilt 0512-2 notilt 0506
+    iter_num = 100
     cam_name_list = ['vision_eye_left', 'vision_eye_right']
     peg_top = 'peg_dummy_top'
     peg_bottom = 'peg_dummy_bottom'
@@ -121,7 +140,8 @@ def main():
     #selected_hole_list = ['circle_7x10', 'circle_7x11', 'circle_7x12', 'circle_7x13', 'circle_7x14']
     #selected_hole_list = ['octagon_7x5', 'pentagon_7x7', 'hexagon_7x6']
     #selected_hole_list = ['square_7x12x12', 'square_7x10x10', 'square_7x14x14', 'rectangle_7x8x11', 'rectangle_7x10x13', 'rectangle_7x12x15', 'circle_7x10', 'circle_7x12', 'circle_7x14']
-    selected_hole_list = ['square_7x12x12']
+    #selected_hole_list = ['rectangle_7x12x13', 'rectangle_7x10x12', 'square_7x11_5x11_5', 'circle_7x14', 'circle_7x10', 'pentagon_7x7', 'octagon_7x5']
+    selected_hole_list = ['square_7x11_5x11_5']
     for selected_hole in selected_hole_list:
         f = open(os.path.join(benchmark_folder, "hole_score.txt"), "a")
         rob_arm = SingleRoboticArm()
@@ -146,9 +166,12 @@ def main():
             rob_arm.set_object_position(hole_name, np.array([0.0, -0.5, 3.6200e-02]))
             rob_arm.set_object_quat(hole_name, origin_hole_quat)
             '''
-            hole_pos = np.array([random.uniform(0.02, 0.18), random.uniform(-0.45, -0.5), 0.035])  # np.array([random.uniform(0.0, 0.2), random.uniform(-0.45, -0.55), 0.035])
+            #hole_pos = np.array([random.uniform(0.02, 0.18), random.uniform(-0.45, -0.5), 0.035])  # np.array([random.uniform(0.0, 0.2), random.uniform(-0.45, -0.55), 0.035])
+            hole_pos = np.array([0.1, -0.475, 0.035])
             rob_arm.set_object_position(hole_name, hole_pos)
             rob_arm.set_object_quat(hole_name, origin_hole_quat)
+            if yaw:
+                random_yaw(rob_arm, [hole_name])
             if tilt:
                 _, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 50)
 
@@ -239,9 +262,9 @@ def main():
                 ### start
                 gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
                 xyz, rot, speed = predict_xyzrot(cam_name_list, kovis_mover, rob_arm, tilt)
-                print(rot)
+                #print(rot)
                 if tilt:
-                    if speed > 0.7:
+                    if speed > 0.8:
                         delta_xyz_pred = xyz * speed * 0.01
                     else:
                         delta_xyz_pred = xyz * speed * 0.001
@@ -250,13 +273,13 @@ def main():
                     delta_rot_pred = r.as_matrix()
                     gripper_pose[:3, :3] = np.dot(gripper_pose[:3, :3], delta_rot_pred)
                 else:
-                    print(speed)
-                    if speed > 0.7:
-                        delta_xyz_pred = xyz * speed * 0.015
+                    print('speed', speed)
+                    if speed > 0.8:
+                        delta_xyz_pred = xyz * speed * 0.01
                     else:
                         delta_xyz_pred = xyz * speed * 0.001
-                    gripper_pose[:3, 3] += delta_xyz_pred
-
+                    #gripper_pose[:3, 3] += delta_xyz_pred
+                    gripper_pose[:3, 3] = gripper_pose[:3, 3] + gripper_pose[:3, 0] * delta_xyz_pred[0] + gripper_pose[:3, 1] * delta_xyz_pred[1] + gripper_pose[:3, 2] * delta_xyz_pred[2]
                 rob_arm.movement(gripper_pose)
 
                 #avoid crash
@@ -274,12 +297,12 @@ def main():
                 if angle > 80 and tilt:
                     print('break! Angle is too large')
                     break
-                if cnt >= 20:
+                if cnt >= 30:
                     print('break! Too long')
                     break
-                if speed > 0.7:
+                if speed > 0.8:
                     cnt_end = 0
-                elif speed <= 0.7:
+                elif speed <= 0.8:
                     cnt_end += 1
                     if cnt_end > 3:
                         rob_arm.movement(gripper_pose)
@@ -321,14 +344,14 @@ def main():
             rob_arm.movement(robot_pose)
             '''
         insertion_succ = sum(insertion_succ_list) / len(insertion_succ_list)
-        msg = hole_name + ' hole success rate : ' + str(insertion_succ * 100) + '% (' + str(sum(insertion_succ_list)) + '/' + str(len(insertion_succ_list)) + ')'
+        msg = '* ' + hole_name + ' hole success rate : ' + str(insertion_succ * 100) + '% (' + str(sum(insertion_succ_list)) + '/' + str(len(insertion_succ_list)) + ')'
         print(msg)
         f.write(msg + '\n')
         if len(error_x)!=0 and len(error_y)!=0:
             print('average x error', sum(error_x) / len(error_x))
             print('average y error', sum(error_y) / len(error_y))
-            f.write('* average x error' + str(sum(error_x) / len(error_x)) + '\n')
-            f.write('* average y error' + str(sum(error_y) / len(error_y)) + '\n')
+            f.write('    * average x error' + str(sum(error_x) / len(error_x)) + '\n')
+            f.write('    * average y error' + str(sum(error_y) / len(error_y)) + '\n')
         f.close()
 
 

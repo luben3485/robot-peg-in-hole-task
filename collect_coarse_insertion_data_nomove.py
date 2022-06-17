@@ -10,6 +10,7 @@ import time
 from transforms3d.quaternions import mat2quat, quat2axangle, quat2mat, qmult
 from scipy.spatial.transform import Rotation as R
 import argparse
+from config.hole_setting import hole_setting
 
 def world2camera_from_map(camera2world_map):
     camera2world = camera2world_from_map(camera2world_map)
@@ -326,6 +327,23 @@ def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
         obj_quat = [obj_quat[1], obj_quat[2], obj_quat[3], obj_quat[0]]  # change to [x,y,z,w]
         rob_arm.set_object_quat(obj_name, obj_quat)
 
+def random_yaw(rob_arm, obj_name_list, degree=45):
+    for obj_name in obj_name_list:
+        yaw_degree = random.uniform(-math.radians(degree), math.radians(degree))
+        rot_dir = rob_arm.get_object_matrix(obj_name)[:3, 0]
+        if obj_name in ['pentagon_7x7', 'rectangle_7x9x12_squarehole', 'rectangle_7x10x13_squarehole']:
+            rot_dir = rob_arm.get_object_matrix(obj_name)[:3, 1]
+        w = math.cos(yaw_degree / 2)
+        x = math.sin(yaw_degree / 2) * rot_dir[0]
+        y = math.sin(yaw_degree / 2) * rot_dir[1]
+        z = math.sin(yaw_degree / 2) * rot_dir[2]
+        rot_quat = [w, x, y, z]
+
+        obj_quat = rob_arm.get_object_quat(obj_name)  # [x,y,z,w]
+        obj_quat = [obj_quat[3], obj_quat[0], obj_quat[1 ], obj_quat[2]]  # change to [w,x,y,z]
+        obj_quat = qmult(rot_quat, obj_quat)  # [w,x,y,z]
+        obj_quat = [obj_quat[1], obj_quat[2], obj_quat[3], obj_quat[0]]  # change to [x,y,z,w]
+        rob_arm.set_object_quat(obj_name, obj_quat)
 
 def parse_args():
     '''PARAMETERS'''
@@ -361,36 +379,7 @@ def main(args):
     peg_top = 'peg_dummy_top'
     peg_bottom = 'peg_dummy_bottom'
     peg_name = 'peg_in_arm'
-    hole_setting = {'square_7x10x10': ['square_7x10x10', 'hole_keypoint_top0', 'hole_keypoint_bottom0',
-                                       'hole_keypoint_obj_bottom0'],
-                    'square_7x11x11': ['square_7x11x11', 'hole_keypoint_top1', 'hole_keypoint_bottom1',
-                                       'hole_keypoint_obj_bottom1'],
-                    'square_7x12x12': ['square_7x12x12', 'hole_keypoint_top2', 'hole_keypoint_bottom2',
-                                       'hole_keypoint_obj_bottom2'],
-                    'square_7x13x13': ['square_7x13x13', 'hole_keypoint_top3', 'hole_keypoint_bottom3',
-                                       'hole_keypoint_obj_bottom3'],
-                    'square_7x14x14': ['square_7x14x14', 'hole_keypoint_top4', 'hole_keypoint_bottom4',
-                                       'hole_keypoint_obj_bottom4'],
-                    'rectangle_7x8x11': ['rectangle_7x8x11', 'hole_keypoint_top5', 'hole_keypoint_bottom5',
-                                         'hole_keypoint_obj_bottom5'],
-                    'rectangle_7x9x12': ['rectangle_7x9x12', 'hole_keypoint_top6', 'hole_keypoint_bottom6',
-                                         'hole_keypoint_obj_bottom6'],
-                    'rectangle_7x10x13': ['rectangle_7x10x13', 'hole_keypoint_top7', 'hole_keypoint_bottom7',
-                                          'hole_keypoint_obj_bottom7'],
-                    'rectangle_7x11x14': ['rectangle_7x11x14', 'hole_keypoint_top8', 'hole_keypoint_bottom8',
-                                          'hole_keypoint_obj_bottom8'],
-                    'rectangle_7x12x15': ['rectangle_7x12x15', 'hole_keypoint_top9', 'hole_keypoint_bottom9',
-                                          'hole_keypoint_obj_bottom9'],
-                    'circle_7x10': ['circle_7x10', 'hole_keypoint_top10', 'hole_keypoint_bottom10',
-                                    'hole_keypoint_obj_bottom10'],
-                    'circle_7x11': ['circle_7x11', 'hole_keypoint_top11', 'hole_keypoint_bottom11',
-                                    'hole_keypoint_obj_bottom11'],
-                    'circle_7x12': ['circle_7x12', 'hole_keypoint_top12', 'hole_keypoint_bottom12',
-                                    'hole_keypoint_obj_bottom12'],
-                    'circle_7x13': ['circle_7x13', 'hole_keypoint_top13', 'hole_keypoint_bottom13',
-                                    'hole_keypoint_obj_bottom13'],
-                    'circle_7x14': ['circle_7x14', 'hole_keypoint_top14', 'hole_keypoint_bottom14',
-                                    'hole_keypoint_obj_bottom14'], }
+
     selected_hole = args.hole
     hole_name = hole_setting[selected_hole][0]
     hole_top = hole_setting[selected_hole][1]
@@ -412,7 +401,9 @@ def main(args):
         hole_pos = np.array([random.uniform(0.0, 0.2), random.uniform(-0.45, -0.55), 0.035])
         rob_arm.set_object_position(hole_name, hole_pos)
         rob_arm.set_object_quat(hole_name, origin_hole_quat)
+        random_yaw(rob_arm, [hole_name])
         random_tilt(rob_arm, [hole_name], 0, 50)
+
 
         '''
         # move peg to random x,y,z

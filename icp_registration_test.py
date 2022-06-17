@@ -12,13 +12,6 @@ from inference_pointnet2_kpts import CoarseMover
 from transforms3d.quaternions import mat2quat, quat2axangle, quat2mat, qmult
 from config.hole_setting import hole_setting
 
-def parse_args():
-    '''PARAMETERS'''
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--target_folder_path', type=str, default='2022-02-26-test/coarse_insertion_square_2022-02-26-test', help='folder path')
-
-    return parser.parse_args()
-
 def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
     while True:
         u = random.uniform(0, 1)
@@ -57,6 +50,24 @@ def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
 
     return rot_dir, tilt_degree
 
+def random_yaw(rob_arm, obj_name_list, degree=45):
+    for obj_name in obj_name_list:
+        yaw_degree = random.uniform(-math.radians(degree), math.radians(degree))
+        rot_dir = rob_arm.get_object_matrix(obj_name)[:3, 0]
+        if obj_name in ['pentagon_7x7', 'rectangle_7x9x12_squarehole', 'rectangle_7x10x13_squarehole']:
+            rot_dir = rob_arm.get_object_matrix(obj_name)[:3, 1]
+        w = math.cos(yaw_degree / 2)
+        x = math.sin(yaw_degree / 2) * rot_dir[0]
+        y = math.sin(yaw_degree / 2) * rot_dir[1]
+        z = math.sin(yaw_degree / 2) * rot_dir[2]
+        rot_quat = [w, x, y, z]
+
+        obj_quat = rob_arm.get_object_quat(obj_name)  # [x,y,z,w]
+        obj_quat = [obj_quat[3], obj_quat[0], obj_quat[1 ], obj_quat[2]]  # change to [w,x,y,z]
+        obj_quat = qmult(rot_quat, obj_quat)  # [w,x,y,z]
+        obj_quat = [obj_quat[1], obj_quat[2], obj_quat[3], obj_quat[0]]  # change to [x,y,z,w]
+        rob_arm.set_object_quat(obj_name, obj_quat)
+
 def depth_2_pcd(depth, factor, K):
     xmap = np.array([[j for i in range(depth.shape[0])] for j in range(depth.shape[1])])
     ymap = np.array([[i for i in range(depth.shape[0])] for j in range(depth.shape[1])])
@@ -81,7 +92,7 @@ def depth_2_pcd(depth, factor, K):
 
     return pcd, choose
 
-def process_raw_mutliple_camera(depth_mm_list, camera2world_list):
+def process_raw_mutliple_camera(depth_mm_list, camera2world_list, noise):
     focal_length = 309.019
     principal = 128
     factor = 1
@@ -109,7 +120,8 @@ def process_raw_mutliple_camera(depth_mm_list, camera2world_list):
         xyz_in_world_list.append(down_xyz_in_world)
     concat_xyz_in_world = np.array(xyz_in_world_list) #(2, 8000, 3, 1)
     concat_xyz_in_world = concat_xyz_in_world.reshape(-1, 3) #(16000, 3)
-
+    if noise:
+        concat_xyz_in_world = jitter_point_cloud(concat_xyz_in_world, sigma=1, clip=3)
     return concat_xyz_in_world
 
 def get_hole_pcd_from_scene_pcd(concat_xyz_in_world, hole_keypoint_top_pose_in_world, hole_keypoint_bottom_pose_in_world):
@@ -141,7 +153,7 @@ def get_hole_pcd_from_scene_pcd(concat_xyz_in_world, hole_keypoint_top_pose_in_w
 
     return  hole_seg_xyz
 
-def get_pcd_from_multi_camera(rob_arm, cam_name_list, hole_top_pose, hole_obj_bottom_pose):
+def get_pcd_from_multi_camera(rob_arm, cam_name_list, hole_top_pose, hole_obj_bottom_pose, noise=False):
     depth_mm_list = []
     camera2world_list = []
     for idx, cam_name in enumerate(cam_name_list):
@@ -157,7 +169,7 @@ def get_pcd_from_multi_camera(rob_arm, cam_name_list, hole_top_pose, hole_obj_bo
         cam_matrix = rob_arm.get_object_matrix(obj_name=cam_name)
         camera2world_list.append(cam_matrix)
 
-    scene_xyz = process_raw_mutliple_camera(depth_mm_list, camera2world_list)
+    scene_xyz = process_raw_mutliple_camera(depth_mm_list, camera2world_list, noise=noise)
     hole_xyz = get_hole_pcd_from_scene_pcd(scene_xyz, hole_top_pose, hole_obj_bottom_pose)
 
     return scene_xyz, hole_xyz
@@ -280,18 +292,22 @@ def coarse_controller_with_icp_gt_pos(rob_arm, cam_name_list, hole_top, hole_obj
 def coarse_controller_with_icp(rob_arm, cam_name_list, trans_init, hole_top, hole_obj_bottom):
     hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
     hole_obj_bottom_pose = rob_arm.get_object_matrix(obj_name=hole_obj_bottom)
-    scene_xyz, _ = get_pcd_from_multi_camera(rob_arm, cam_name_list, hole_top_pose, hole_obj_bottom_pose)
+    scene_xyz, _ = get_pcd_from_multi_camera(rob_arm, cam_name_list, hole_top_pose, hole_obj_bottom_pose, noise=False)
 
-    source = o3d.io.read_point_cloud('full_hole.pcd')
+    # square hole
+    source = o3d.io.read_point_cloud('square_7x12x12_squarehole_for_icp.pcd')
+    source.points = o3d.utility.Vector3dVector(np.asarray(source.points) / 1000)
+    # round hole
+    # source = o3d.io.read_point_cloud('full_hole.pcd')
     print(source)
     target = o3d.geometry.PointCloud()
     target.points = o3d.utility.Vector3dVector(scene_xyz/1000)
-    threshold = 0.9 # 0.02
+    threshold = 0.02 # 0.02
     reg_p2p = o3d.registration.registration_icp(
         source, target, threshold, trans_init,
         o3d.registration.TransformationEstimationPointToPoint())
 
-    #draw_registration_result(source, target, reg_p2p.transformation)
+    draw_registration_result(source, target, reg_p2p.transformation)
     transformation = copy.deepcopy(reg_p2p.transformation)
     #print(transformation)
     '''
@@ -316,7 +332,7 @@ def predict_kpts_no_oft_from_multiple_camera(cam_name_list, mover, rob_arm):
         depth_mm = (depth * 1000).astype(np.uint16)  # type: np.uint16 ; uint16 is needed by keypoint detection network
         depth_mm_list.append(depth_mm)
 
-    points, pcd_centroid, pcd_mean = mover.process_raw_mutliple_camera(depth_mm_list, camera2world_list)
+    points, pcd_centroid, pcd_mean = mover.process_raw_mutliple_camera(depth_mm_list, camera2world_list, add_noise=False)
     real_kpt_pred, dir_pred, rot_mat_pred, confidence = mover.inference_from_pcd(points, pcd_centroid, pcd_mean, use_offset=False)
     real_kpt_pred = real_kpt_pred / 1000  # unit: mm to m
     trans_init = np.zeros((4, 4))
@@ -326,12 +342,34 @@ def predict_kpts_no_oft_from_multiple_camera(cam_name_list, mover, rob_arm):
     trans_init[:3, :3] = np.dot(rot_mat_pred, np.transpose(np.array([[0, -1, 0],[0, 0, -1],[1, 0, 0]])))
     trans_init[:3, 3] = real_kpt_pred - np.dot(trans_init[:3, :3], np.array([0., 0, 0.07]).reshape(3, 1))[:, 0]
     '''
-    trans_init[:3, :3] = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-    #trans_init[:3, 3] = real_kpt_pred - np.dot(trans_init[:3, :3], np.array([0., 0, 0.07]).reshape(3, 1))[:, 0]
-    trans_init[:3, 3] = np.array([0.1, -0.5, 0.035]) - np.dot(trans_init[:3, :3], np.array([0., 0, 0.07]).reshape(3, 1))[:, 0]
+    #trans_init[:3, :3] = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    trans_init[:3, :3] = np.dot(rot_mat_pred, np.transpose(np.array([[0, -1, 0], [0, 0, -1], [1, 0, 0]])))
+    trans_init[:3, 3] = real_kpt_pred - np.dot(trans_init[:3, :3], np.array([0., 0, 0.07]).reshape(3, 1))[:, 0]
+    #trans_init[:3, 3] = np.array([0.1, -0.5, 0.035]) - np.dot(trans_init[:3, :3], np.array([0., 0, 0.07]).reshape(3, 1))[:, 0]
     return trans_init
 
-def main():
+def jitter_point_cloud(data, sigma=0.01, clip=0.05):
+    """ Randomly jitter points. jittering is per point.
+        Input:
+          Nx3 array, original batch of point clouds
+        Return:
+          Nx3 array, jittered batch of point clouds
+    """
+    N, C = data.shape
+    assert(clip > 0)
+    jittered_data = np.clip(sigma * np.random.randn(N, C), -1*clip, clip)
+    jittered_data += data
+    return jittered_data
+
+def parse_args():
+    '''PARAMETERS'''
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--iter', type=int, default=2)
+    parser.add_argument('--tilt', action='store_true', default=False, help='tilt')
+    parser.add_argument('--yaw', action='store_true', default=False, help='yaw')
+    return parser.parse_args()
+
+def main(args):
     '''
     pcd = o3d.io.read_point_cloud('full_hole.pcd')
     xyz = np.asarray(pcd.points)
@@ -347,27 +385,33 @@ def main():
     peg_name = 'peg_in_arm'
     #cam_name_list = ['vision_eye_left', 'vision_eye_right']
     cam_name_list = ['vision_eye_front']
-    tilt = True
+    tilt = args.tilt
+    yaw = args.yaw
     benchmark_folder = os.path.join('pcd_benchmark', 'icp')
     if not os.path.exists(benchmark_folder):
         os.makedirs(benchmark_folder)
-    f = open(os.path.join(benchmark_folder, "hole_score.txt"), "w")
+    #coarse_mover = CoarseMover(model_path='kpts/2022-06-10_22-43', model_name='pointnet2_kpts', checkpoint_name='best_model_e_101.pth', use_cpu=False, out_channel=9)
     coarse_mover = CoarseMover(model_path='kpts/2022-05-17_21-15', model_name='pointnet2_kpts', checkpoint_name='best_model_e_101.pth', use_cpu=False, out_channel=9)
     #fine_mover = Mover(model_path='kpts/2022-04-01_15-11', model_name='pointnet2_kpts', checkpoint_name='best_model_e_43.pth', use_cpu=False, out_channel=9)
 
     #selected_hole_list = ['square', 'small_square', 'circle', 'rectangle', 'triangle']
-    selected_hole_list = ['square_7x11_5x11_5']
+    #selected_hole_list = ['square_7x11_5x11_5', 'square_7x12_5x12_5', 'rectangle_7x11_5x12', 'rectangle_7x12x11_5', 'rectangle_7x9x13', 'rectangle_7x10x12', 'rectangle_7x12x13']
+    #selected_hole_list = ['square_7x11_5x11_5', 'rectangle_7x12x13', 'rectangle_7x10x12', 'circle_7x14', 'circle_7x12', 'circle_7x10', 'pentagon_7x7', 'octagon_7x5']
+    selected_hole_list = ['square_7x11_5x11_5_squarehole', 'circle_7x12_squarehole']
     for selected_hole in selected_hole_list:
+        f = open(os.path.join(benchmark_folder, "hole_score.txt"), "a")
         hole_name = hole_setting[selected_hole][0]
         hole_top = hole_setting[selected_hole][1]
         hole_bottom = hole_setting[selected_hole][2]
         hole_obj_bottom = hole_setting[selected_hole][3]
         insertion_succ_list = []
-        for i in range(250):
+        for i in range(args.iter):
             print('='*10 + 'iter:' + str(i) + '='*10)
             rob_arm = SingleRoboticArm()
             hole_pos = [random.uniform(0, 0.2), random.uniform(-0.45, -0.55), +3.5001e-02]
             rob_arm.set_object_position(hole_name, hole_pos)
+            if yaw:
+                random_yaw(rob_arm, [hole_name])
             if tilt:
                 _, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 50)
             '''
@@ -425,9 +469,10 @@ def main():
                 print('fail!')
             rob_arm.finish()
         insertion_succ = sum(insertion_succ_list) / len(insertion_succ_list)
-        msg = hole_name + ' hole success rate : ' + str(insertion_succ * 100) + '% (' + str(sum(insertion_succ_list)) + '/' + str(len(insertion_succ_list)) + ')'
+        msg = '* ' + hole_name + ' hole success rate : ' + str(insertion_succ * 100) + '% (' + str(sum(insertion_succ_list)) + '/' + str(len(insertion_succ_list)) + ')'
         print(msg)
         f.write(msg + '\n')
+        f.close()
 
     '''
     data_root = os.path.join('/home/luben/data/pdc/logs_proto', args.target_folder_path, 'processed')
@@ -441,4 +486,8 @@ def main():
         depth_image_filename_list = data[key]['depth_image_filename']
     '''
 if __name__ == '__main__':
-    main()
+    args = parse_args()
+    start_time = time.time()
+    main(args)
+    end_time = time.time()
+    print('Time elasped:{:.02f}'.format((end_time - start_time) / 3600))

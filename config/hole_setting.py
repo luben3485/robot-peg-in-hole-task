@@ -22,4 +22,12 @@ hole_setting = {'square_7x10x10': ['square_7x10x10', 'hole_keypoint_top0', 'hole
                     'rectangle_7x12x11_5': ['rectangle_7x12x11_5', 'hole_keypoint_top21', 'hole_keypoint_bottom21', 'hole_keypoint_obj_bottom21'],
                     'rectangle_7x9x13': ['rectangle_7x9x13', 'hole_keypoint_top22', 'hole_keypoint_bottom22', 'hole_keypoint_obj_bottom22'],
                     'rectangle_7x10x12': ['rectangle_7x10x12', 'hole_keypoint_top23', 'hole_keypoint_bottom23', 'hole_keypoint_obj_bottom23'],
-                    'rectangle_7x12x13': ['rectangle_7x12x13', 'hole_keypoint_top24', 'hole_keypoint_bottom24', 'hole_keypoint_obj_bottom24'],}
+                    'rectangle_7x12x13': ['rectangle_7x12x13', 'hole_keypoint_top24', 'hole_keypoint_bottom24', 'hole_keypoint_obj_bottom24'],
+                    'square_7x11_5x11_5_squarehole': ['square_7x11_5x11_5_squarehole', 'hole_keypoint_top25', 'hole_keypoint_bottom25', 'hole_keypoint_obj_bottom25'],
+                    'square_7x12x12_squarehole': ['square_7x12x12_squarehole', 'hole_keypoint_top26', 'hole_keypoint_bottom26', 'hole_keypoint_obj_bottom26'],
+                    'circle_7x12_squarehole': ['circle_7x12_squarehole', 'hole_keypoint_top27', 'hole_keypoint_bottom27', 'hole_keypoint_obj_bottom27'],
+                    'square_7x13x13_squarehole': ['square_7x13x13_squarehole', 'hole_keypoint_top28', 'hole_keypoint_bottom28', 'hole_keypoint_obj_bottom28'],
+                    'rectangle_7x9x12_squarehole': ['rectangle_7x9x12_squarehole', 'hole_keypoint_top29', 'hole_keypoint_bottom29', 'hole_keypoint_obj_bottom29'],
+                    'rectangle_7x10x13_squarehole': ['rectangle_7x10x13_squarehole', 'hole_keypoint_top30', 'hole_keypoint_bottom30', 'hole_keypoint_obj_bottom30'],
+                    'rectangle_7x10x12_squarehole': ['rectangle_7x10x12_squarehole', 'hole_keypoint_top31', 'hole_keypoint_bottom31', 'hole_keypoint_obj_bottom31'],
+                    'pentagon_7x7_squarehole': ['pentagon_7x7_squarehole', 'hole_keypoint_top32', 'hole_keypoint_bottom32', 'hole_keypoint_obj_bottom32'],}

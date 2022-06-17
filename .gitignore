@@ -15,3 +15,8 @@ pcd_benchmark/
 /mrcnn/test1.jpeg
 /mrcnn/proposal-v1.docx
 /mankey/log
+
+coarse.ply
+fine-1.ply
+fine-2.ply
+heatmap.ply

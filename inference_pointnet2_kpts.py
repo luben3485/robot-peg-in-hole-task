@@ -140,7 +140,10 @@ class CoarseMover(object):
         concat_xyz_in_world = concat_xyz_in_world.reshape(-1, 3)
         if add_noise==True:
             concat_xyz_in_world = jitter_point_cloud(concat_xyz_in_world, sigma=1, clip=3)
-
+        # visualize
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(concat_xyz_in_world)
+        o3d.io.write_point_cloud(os.path.join('coarse.ply'), pcd)
         # normalize the pcd
         centroid = np.mean(concat_xyz_in_world, axis=0)
         points = concat_xyz_in_world - centroid
@@ -203,6 +206,15 @@ class CoarseMover(object):
             mean_kpt_y_pred = mean_kpt_y_pred[0].cpu().numpy()
             rot_mat_pred = rot_mat_pred[0].cpu().numpy()
             confidence = confidence[0].cpu().numpy()
+            # visualize heatmap
+            points = points.cpu().transpose(2, 1).squeeze().numpy()
+            origin_real_pcd = (points * m) + centroid
+            visualize_pcd = o3d.geometry.PointCloud()
+            visualize_pcd.points = o3d.utility.Vector3dVector(origin_real_pcd)
+            heatmap_color = np.repeat(confidence, 3, axis=1).reshape(-1, 3)  # n x 3
+            visualize_pcd.colors = o3d.utility.Vector3dVector(heatmap_color)
+            o3d.io.write_point_cloud('heatmap.ply', visualize_pcd)
+
             trans_of_pred = trans_of_pred[0].cpu().numpy()
             real_kpt_pred = (mean_kpt_pred * m) + centroid  # unit:mm
             real_kpt_pred = real_kpt_pred.reshape(3, )
@@ -211,6 +223,7 @@ class CoarseMover(object):
             dir_pred = real_kpt_pred - real_kpt_x_pred
             dir_pred = dir_pred / np.linalg.norm(dir_pred)
             # offset means translation offset now, and rotation offset is not used.
+            print(mean_kpt_pred, mean_kpt_x_pred, mean_kpt_y_pred)
             if not use_offset:
                 return real_kpt_pred, dir_pred, rot_mat_pred, confidence
             if use_offset:

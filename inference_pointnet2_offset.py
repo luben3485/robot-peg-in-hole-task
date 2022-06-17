@@ -143,6 +143,10 @@ class FineMover(object):
         concat_xyz_in_world = concat_xyz_in_world.reshape(-1, 3)
         if add_noise==True:
             concat_xyz_in_world = jitter_point_cloud(concat_xyz_in_world, sigma=1, clip=3)
+        # visualize
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(concat_xyz_in_world)
+        o3d.io.write_point_cloud(os.path.join('fine-1.ply'), pcd)
 
         # normalize the pcd
         centroid = np.mean(concat_xyz_in_world, axis=0)
@@ -175,6 +179,11 @@ class FineMover(object):
         if crop_xyz.shape[0] >= 2048:
             crop_xyz = crop_xyz[:2048, :]
         points = copy.deepcopy(crop_xyz)
+        # visualize
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(points)
+        o3d.io.write_point_cloud(os.path.join('fine-2.ply'), pcd)
+
         centroid = np.mean(points, axis=0)
         points = points - centroid
         m = np.max(np.sqrt(np.sum(points ** 2, axis=1)))
