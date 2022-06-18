@@ -29,7 +29,7 @@ import mankey.provider as provider
 import mankey.config.parameter as parameter
 from mankey.models.utils import compute_rotation_matrix_from_ortho6d
 from mankey.network.loss import RMSELoss
-from sklearn.decomposition import PCA
+#from sklearn.decomposition import PCA
 from scipy.spatial.transform import Rotation as R
 
 focal_length = 309.019

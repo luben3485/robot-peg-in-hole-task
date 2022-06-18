@@ -120,7 +120,7 @@ class CollectInsert(object):
             num_roll = step
         if num_roll >= 2:
             print('save!')
-            if self.tilt:
+            if self.tilt or self.yaw:
                 self.save_label((vec * -1.).tolist() + r_euler.tolist() + [speed])
             else:
                 self.save_label((vec * -1.).tolist() + [0, 0, 0] + [speed])
@@ -185,7 +185,7 @@ class CollectInsert(object):
         for obj_name in obj_name_list:
             yaw_degree = random.uniform(-math.radians(degree), math.radians(degree))
             rot_dir = self.rob_arm.get_object_matrix(obj_name)[:3, 0]
-            if obj_name in ['pentagon_7x7', 'rectangle_7x9x12_squarehole', 'rectangle_7x10x13_squarehole']:
+            if obj_name in ['pentagon_7x7_squarehole', 'pentagon_7x9_squarehole', 'rectangle_7x9x12_squarehole', 'rectangle_7x10x13_squarehole']:
                 rot_dir = self.rob_arm.get_object_matrix(obj_name)[:3, 1]
             w = math.cos(yaw_degree / 2)
             x = math.sin(yaw_degree / 2) * rot_dir[0]

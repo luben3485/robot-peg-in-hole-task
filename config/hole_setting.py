@@ -30,4 +30,6 @@ hole_setting = {'square_7x10x10': ['square_7x10x10', 'hole_keypoint_top0', 'hole
                     'rectangle_7x9x12_squarehole': ['rectangle_7x9x12_squarehole', 'hole_keypoint_top29', 'hole_keypoint_bottom29', 'hole_keypoint_obj_bottom29'],
                     'rectangle_7x10x13_squarehole': ['rectangle_7x10x13_squarehole', 'hole_keypoint_top30', 'hole_keypoint_bottom30', 'hole_keypoint_obj_bottom30'],
                     'rectangle_7x10x12_squarehole': ['rectangle_7x10x12_squarehole', 'hole_keypoint_top31', 'hole_keypoint_bottom31', 'hole_keypoint_obj_bottom31'],
-                    'pentagon_7x7_squarehole': ['pentagon_7x7_squarehole', 'hole_keypoint_top32', 'hole_keypoint_bottom32', 'hole_keypoint_obj_bottom32'],}
+                    'pentagon_7x7_squarehole': ['pentagon_7x7_squarehole', 'hole_keypoint_top32', 'hole_keypoint_bottom32', 'hole_keypoint_obj_bottom32'],
+                    'circle_7x14_squarehole': ['circle_7x14_squarehole', 'hole_keypoint_top33', 'hole_keypoint_bottom33', 'hole_keypoint_obj_bottom33'],
+                    'pentagon_7x9_squarehole': ['pentagon_7x9_squarehole', 'hole_keypoint_top34', 'hole_keypoint_bottom34', 'hole_keypoint_obj_bottom34'],}
