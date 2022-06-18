@@ -317,7 +317,7 @@ def coarse_controller_with_icp(rob_arm, cam_name_list, trans_init, hole_top, hol
     '''
     return transformation
 
-def predict_kpts_no_oft_from_multiple_camera(cam_name_list, mover, rob_arm):
+def predict_kpts_no_oft_from_multiple_camera(cam_name_list, mover, rob_arm, detect_kpt=False):
     depth_mm_list = []
     camera2world_list = []
     for cam_name in cam_name_list:
@@ -342,10 +342,14 @@ def predict_kpts_no_oft_from_multiple_camera(cam_name_list, mover, rob_arm):
     trans_init[:3, :3] = np.dot(rot_mat_pred, np.transpose(np.array([[0, -1, 0],[0, 0, -1],[1, 0, 0]])))
     trans_init[:3, 3] = real_kpt_pred - np.dot(trans_init[:3, :3], np.array([0., 0, 0.07]).reshape(3, 1))[:, 0]
     '''
-    #trans_init[:3, :3] = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-    trans_init[:3, :3] = np.dot(rot_mat_pred, np.transpose(np.array([[0, -1, 0], [0, 0, -1], [1, 0, 0]])))
-    trans_init[:3, 3] = real_kpt_pred - np.dot(trans_init[:3, :3], np.array([0., 0, 0.07]).reshape(3, 1))[:, 0]
-    #trans_init[:3, 3] = np.array([0.1, -0.5, 0.035]) - np.dot(trans_init[:3, :3], np.array([0., 0, 0.07]).reshape(3, 1))[:, 0]
+    if detect_kpt == True:
+        # trans_init[:3, :3] = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        trans_init[:3, :3] = np.dot(rot_mat_pred, np.transpose(np.array([[0, -1, 0], [0, 0, -1], [1, 0, 0]])))
+        trans_init[:3, 3] = real_kpt_pred - np.dot(trans_init[:3, :3], np.array([0., 0, 0.07]).reshape(3, 1))[:, 0]
+    else:
+        trans_init[:3, :3] = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        trans_init[:3, 3] = np.array([0.1, -0.5, 0.035]) - np.dot(trans_init[:3, :3], np.array([0., 0, 0.07]).reshape(3, 1))[:, 0]
+
     return trans_init
 
 def jitter_point_cloud(data, sigma=0.01, clip=0.05):
@@ -367,6 +371,7 @@ def parse_args():
     parser.add_argument('--iter', type=int, default=2)
     parser.add_argument('--tilt', action='store_true', default=False, help='tilt')
     parser.add_argument('--yaw', action='store_true', default=False, help='yaw')
+    parser.add_argument('--detect_kpt', action='store_true', default=False, help='kpt')
     return parser.parse_args()
 
 def main(args):
@@ -427,7 +432,7 @@ def main(args):
             gripper_init_rot = rob_arm.get_object_matrix('UR5_ikTip')[:3, :3]
 
             # coarse approach with ICP
-            trans_init = predict_kpts_no_oft_from_multiple_camera(cam_name_list, coarse_mover, rob_arm)
+            trans_init = predict_kpts_no_oft_from_multiple_camera(cam_name_list, coarse_mover, rob_arm, args.detect_kpt)
             transformation = coarse_controller_with_icp(rob_arm, cam_name_list, trans_init, hole_top, hole_obj_bottom)
             gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
             gripper_pose[:3, 3] = np.array([0.0, 0.0, 0.07])
