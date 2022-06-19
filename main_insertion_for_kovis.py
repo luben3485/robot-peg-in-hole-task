@@ -109,7 +109,7 @@ def specific_tilt(rob_arm, obj_name_list, rot_dir, tilt_degree):
         obj_quat = [obj_quat[1], obj_quat[2], obj_quat[3], obj_quat[0]]  # change to [x,y,z,w]
         rob_arm.set_object_quat(obj_name, obj_quat)
 
-def predict_xyzrot(cam_name_list, mover, rob_arm, tilt):
+def predict_xyzrot(cam_name_list, mover, rob_arm, tilt, yaw):
     assert len(cam_name_list) == 2
     imgs = []
     for cam_name in cam_name_list:
@@ -117,7 +117,7 @@ def predict_xyzrot(cam_name_list, mover, rob_arm, tilt):
         im = cv2.cvtColor(im, cv2.COLOR_RGB2GRAY)
         imgs.append(im)
 
-    xyz, rot, speed = mover.inference(imgs, visualize=True, tilt=tilt)
+    xyz, rot, speed = mover.inference(imgs, visualize=True, tilt=tilt, yaw=yaw)
 
     return xyz, rot, speed
 
@@ -171,7 +171,7 @@ def main():
             rob_arm.set_object_position(hole_name, hole_pos)
             rob_arm.set_object_quat(hole_name, origin_hole_quat)
             if yaw:
-                random_yaw(rob_arm, [hole_name])
+                random_yaw(rob_arm, [hole_name], degree=45)
             if tilt:
                 _, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 50)
 
@@ -270,6 +270,18 @@ def main():
                         delta_xyz_pred = xyz * speed * 0.001
                     gripper_pose[:3, 3] = gripper_pose[:3, 3] + gripper_pose[:3, 0] * delta_xyz_pred[0] + gripper_pose[:3, 1] * delta_xyz_pred[1] + gripper_pose[:3, 2] * delta_xyz_pred[2]
                     r = R.from_euler('zyx', rot, degrees=True)
+                    delta_rot_pred = r.as_matrix()
+                    gripper_pose[:3, :3] = np.dot(gripper_pose[:3, :3], delta_rot_pred)
+                elif yaw:
+                    if speed > 0.8:
+                        delta_xyz_pred = xyz * speed * 0.01
+                    else:
+                        delta_xyz_pred = xyz * speed * 0.001
+                    gripper_pose[:3, 3] = gripper_pose[:3, 3] + gripper_pose[:3, 0] * delta_xyz_pred[0] + gripper_pose[:3, 1] * delta_xyz_pred[1] + gripper_pose[:3, 2] * delta_xyz_pred[2]
+                    r = R.from_euler('zyx', rot, degrees=True)
+                    # only x-axis
+                    rot[0] = 0.0
+                    rot[1] = 0.0
                     delta_rot_pred = r.as_matrix()
                     gripper_pose[:3, :3] = np.dot(gripper_pose[:3, :3], delta_rot_pred)
                 else:

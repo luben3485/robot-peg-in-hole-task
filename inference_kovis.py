@@ -67,7 +67,7 @@ class KOVISMover(object):
         img = torch.from_numpy(img[None, ...]).float().div(255).sub_(self.mean).div_(self.std)
         return img.unsqueeze(0)
 
-    def inference(self,imgs, visualize, tilt=False):
+    def inference(self,imgs, visualize, tilt=False, yaw=False):
         inL = self.img_proc(imgs[0], self.im_size[0])
         inR = self.img_proc(imgs[1], self.im_size[0])
         inL = inL.cuda()
@@ -80,7 +80,7 @@ class KOVISMover(object):
         speed = torch.sigmoid(speed).detach().cpu().item()
         speed = max(0.00, speed - 0.1)
         xyz = (vec[:3] / torch.norm(vec[:3])).detach().cpu().numpy()
-        if tilt:
+        if tilt or yaw:
             rot = vec[3:].detach().cpu().numpy()
             rot *= 10
         else:
