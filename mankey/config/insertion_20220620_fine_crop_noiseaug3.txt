@@ -1,0 +1,4 @@
+logs_proto/2022-06-20-fine-squarehole/fine_insertion_square_7x12x12_squarehole_2022-06-20-crop-noiseaug3
+logs_proto/2022-06-20-fine-squarehole/fine_insertion_square_7x13x13_squarehole_2022-06-20-crop-noiseaug3
+logs_proto/2022-06-20-fine-squarehole/fine_insertion_rectangle_7x9x12_squarehole_2022-06-20-crop-noiseaug3
+logs_proto/2022-06-20-fine-squarehole/fine_insertion_rectangle_7x10x13_squarehole_2022-06-20-crop-noiseaug3

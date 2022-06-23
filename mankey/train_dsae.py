@@ -5,7 +5,7 @@ Date: Nov 2019
 
 import os
 '''HYPER PARAMETER'''
-os.environ["CUDA_VISIBLE_DEVICES"] = '6'
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 import sys
 import torch
 from torch.utils.data import DataLoader
@@ -58,9 +58,9 @@ def construct_dataset(is_train: bool) -> (torch.utils.data.Dataset, SupervisedKe
     db_config.keypoint_yaml_name = 'peg_in_hole.yaml'
     db_config.pdc_data_root = '/tmp2/r09944001/data/pdc'
     if is_train:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220502_fine_notilt.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220502_fine_notilt_test.txt'
     else:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220502_fine_notilt.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_square_7x12x12_20220502_fine_notilt_test.txt'
     database = SpartanSupervisedKeypointDatabase(db_config)
 
     # Construct torch dataset

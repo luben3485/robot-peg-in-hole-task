@@ -201,7 +201,7 @@ def main(args):
         if args.aug_data:
             #concat_xyz_in_world = random_point_dropout(concat_xyz_in_world)
             concat_xyz_in_world = scale_point_cloud(concat_xyz_in_world, hole_top_pose, seg_label)
-            #concat_xyz_in_world = jitter_point_cloud(concat_xyz_in_world, sigma=1, clip=5)
+            concat_xyz_in_world = jitter_point_cloud(concat_xyz_in_world, sigma=1, clip=3)
             '''pointWOLF
             aug = PointWOLF()
             _, concat_xyz_in_world = aug(concat_xyz_in_world/1000)
@@ -226,14 +226,14 @@ def main(args):
                 print('Error', key)
                 assert False
             concat_xyz_in_world = np.array(crop_concat_xyz_in_world)
-            print(concat_xyz_in_world.shape)
+            #print(concat_xyz_in_world.shape)
             if concat_xyz_in_world.shape[0] > 2048:
                 concat_xyz_in_world, drop_idx = specific_point_dropout(concat_xyz_in_world, drop_num=concat_xyz_in_world.shape[0]-2048)
                 seg_label = np.delete(seg_label, drop_idx, axis=0)
                 seg_color = np.delete(seg_color, drop_idx, axis=0)
             elif concat_xyz_in_world.shape[0] < 2048:
                 data.pop(key, None)
-                print('pop key: ', key)
+                #print('pop key: ', key)
                 continue
 
         # for heatmap

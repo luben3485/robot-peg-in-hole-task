@@ -196,7 +196,7 @@ class SpartanSupervisedKeypointDatabase(SupervisedImageKeypointDatabase):
         '''
         # xyzrot
         entry.delta_rotation_matrix = np.array(image_map['delta_rotation_matrix']).reshape((3,3))
-        entry.delta_rot_euler = np.array(image_map['r_euler']).reshape((3,))
+        entry.delta_rot_euler = np.array(image_map['r_euler_rel2world']).reshape((3,))
         #entry.delta_rot_cls = np.array(image_map['cls']).reshape((3,))
         entry.delta_translation = np.array(image_map['delta_translation']).reshape((3,))
         entry.gripper_pose = np.array(image_map['gripper_pose']).reshape((4,4))

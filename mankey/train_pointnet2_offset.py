@@ -5,7 +5,7 @@ Date: Nov 2019
 
 import os
 '''HYPER PARAMETER'''
-os.environ["CUDA_VISIBLE_DEVICES"] = '3'
+os.environ["CUDA_VISIBLE_DEVICES"] = '7'
 import sys
 import torch
 from torch.utils.data import DataLoader
@@ -38,7 +38,7 @@ def parse_args():
     parser = argparse.ArgumentParser('training')
     parser.add_argument('--use_cpu', action='store_true', default=False, help='use cpu mode')
     #parser.add_argument('--gpu', type=str, default='0', help='specify gpu device')
-    parser.add_argument('--batch_size', type=int, default=8, help='batch size in training')
+    parser.add_argument('--batch_size', type=int, default=48, help='32batch size in training')
     parser.add_argument('--model', default='pointnet2_offset', help='model name [default: pointnet_cls]')
     parser.add_argument('--out_channel', default=9, type=int)
     parser.add_argument('--epoch', default=200, type=int, help='number of epoch in training')
@@ -58,9 +58,9 @@ def construct_dataset(is_train: bool) -> (torch.utils.data.Dataset, SupervisedKe
     db_config.keypoint_yaml_name = 'peg_in_hole.yaml'
     db_config.pdc_data_root = '/tmp2/r09944001/data/pdc'
     if is_train:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220412_fine_test.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220620_fine_crop_noiseaug3_noscale.txt'
     else:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220412_fine_test.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220620_fine_crop_noiseaug3_noscale.txt'
     database = SpartanSupervisedKeypointDatabase(db_config)
 
     # Construct torch dataset
@@ -93,7 +93,7 @@ def test(model, loader, out_channel, criterion_rmse, criterion_cos, criterion_bc
         delta_xyz = data[parameter.delta_xyz_key]
         delta_xyz *= 200
         delta_rot_euler = data[parameter.delta_rot_euler_key]
-        delta_rot_euler /= 5
+        delta_rot_euler /= 10
         
         if not args.use_cpu:
             points = points.cuda()
@@ -234,7 +234,7 @@ def main(args):
             delta_xyz = data[parameter.delta_xyz_key]
             delta_xyz *= 200
             delta_rot_euler = data[parameter.delta_rot_euler_key]
-            delta_rot_euler /= 5
+            delta_rot_euler /= 10
 
             if not args.use_cpu:
                 points = points.cuda()

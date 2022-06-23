@@ -165,8 +165,8 @@ class SupervisedKeypointDataset(data.Dataset):
             stacked_tensor[channel_offset, :, :] = normalized_depth[0]
             channel_offset += 1
             
-        rgb_pair = np.concatenate((normalized_rgb[0],normalized_rgb[1]), axis=0)
-        depth_pair = np.stack(normalized_depth)
+        #rgb_pair = np.concatenate((normalized_rgb[0],normalized_rgb[1]), axis=0)
+        #depth_pair = np.stack(normalized_depth)
 
         # Do scale on keypoint xy and depth
         normalized_keypoint_xy_depth = processed_entry.keypoint_xy_depth.copy()
@@ -180,8 +180,8 @@ class SupervisedKeypointDataset(data.Dataset):
         validity = np.transpose(processed_entry.keypoint_validity, (1, 0))
         return {
             parameter.rgbd_image_key: stacked_tensor,
-            parameter.rgb_pair_key: rgb_pair,
-            parameter.depth_pair_key: depth_pair,
+            #parameter.rgb_pair_key: rgb_pair,
+            #parameter.depth_pair_key: depth_pair,
             parameter.pcd_key: processed_entry.pcd.astype(np.float32),
             parameter.heatmap_key: processed_entry.heatmap.astype(np.float32),
             parameter.segmentation_key: processed_entry.segmentation.astype(np.float32),
