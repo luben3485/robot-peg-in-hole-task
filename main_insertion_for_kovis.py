@@ -128,7 +128,7 @@ def main():
         os.makedirs(benchmark_folder)
     tilt = False
     yaw = True
-    kovis_mover = KOVISMover(ckpt_folder='insert-0512-2') #tilt 0512-2 notilt 0506
+    kovis_mover = KOVISMover(ckpt_folder='insert-0619-notilt-yaw') #tilt 0512-2 notilt 0506 insert-0616-notilt-yaw
     iter_num = 100
     cam_name_list = ['vision_eye_left', 'vision_eye_right']
     peg_top = 'peg_dummy_top'
@@ -141,7 +141,7 @@ def main():
     #selected_hole_list = ['octagon_7x5', 'pentagon_7x7', 'hexagon_7x6']
     #selected_hole_list = ['square_7x12x12', 'square_7x10x10', 'square_7x14x14', 'rectangle_7x8x11', 'rectangle_7x10x13', 'rectangle_7x12x15', 'circle_7x10', 'circle_7x12', 'circle_7x14']
     #selected_hole_list = ['rectangle_7x12x13', 'rectangle_7x10x12', 'square_7x11_5x11_5', 'circle_7x14', 'circle_7x10', 'pentagon_7x7', 'octagon_7x5']
-    selected_hole_list = ['square_7x11_5x11_5']
+    selected_hole_list = ['square_7x11_5x11_5_squarehole', 'rectangle_7x10x12_squarehole', 'circle_7x14_squarehole', 'pentagon_7x9_squarehole']
     for selected_hole in selected_hole_list:
         f = open(os.path.join(benchmark_folder, "hole_score.txt"), "a")
         rob_arm = SingleRoboticArm()
@@ -171,7 +171,7 @@ def main():
             rob_arm.set_object_position(hole_name, hole_pos)
             rob_arm.set_object_quat(hole_name, origin_hole_quat)
             if yaw:
-                random_yaw(rob_arm, [hole_name], degree=45)
+                random_yaw(rob_arm, [hole_name], degree=20)
             if tilt:
                 _, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 50)
 
@@ -194,7 +194,13 @@ def main():
                     break
             '''
 
-            delta_move = np.array([random.uniform(-0.04, 0.04), random.uniform(-0.04, 0.04), random.uniform(0.07, 0.15)])
+
+            if yaw:
+                delta_move = np.array([random.uniform(-0.01, 0.01), random.uniform(-0.01, 0.01), random.uniform(0.0, 0.01)])
+            elif yaw and tilt:
+                delta_move = np.array([random.uniform(-0.02, 0.02), random.uniform(0.0, 0.04), random.uniform(0.02, 0.03)])
+            else:
+                delta_move = np.array([random.uniform(-0.04, 0.04), random.uniform(-0.04, 0.04), random.uniform(0.07, 0.15)])
             start_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
             hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
             start_pos = hole_top_pose[:3, 3]
@@ -261,35 +267,39 @@ def main():
             while True:
                 ### start
                 gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
-                xyz, rot, speed = predict_xyzrot(cam_name_list, kovis_mover, rob_arm, tilt)
+                xyz, rot, speed = predict_xyzrot(cam_name_list, kovis_mover, rob_arm, tilt, yaw)
                 #print(rot)
-                if tilt:
-                    if speed > 0.8:
-                        delta_xyz_pred = xyz * speed * 0.01
-                    else:
-                        delta_xyz_pred = xyz * speed * 0.001
-                    gripper_pose[:3, 3] = gripper_pose[:3, 3] + gripper_pose[:3, 0] * delta_xyz_pred[0] + gripper_pose[:3, 1] * delta_xyz_pred[1] + gripper_pose[:3, 2] * delta_xyz_pred[2]
-                    r = R.from_euler('zyx', rot, degrees=True)
-                    delta_rot_pred = r.as_matrix()
-                    gripper_pose[:3, :3] = np.dot(gripper_pose[:3, :3], delta_rot_pred)
-                elif yaw:
-                    if speed > 0.8:
-                        delta_xyz_pred = xyz * speed * 0.01
-                    else:
-                        delta_xyz_pred = xyz * speed * 0.001
-                    gripper_pose[:3, 3] = gripper_pose[:3, 3] + gripper_pose[:3, 0] * delta_xyz_pred[0] + gripper_pose[:3, 1] * delta_xyz_pred[1] + gripper_pose[:3, 2] * delta_xyz_pred[2]
-                    r = R.from_euler('zyx', rot, degrees=True)
-                    # only x-axis
-                    rot[0] = 0.0
-                    rot[1] = 0.0
-                    delta_rot_pred = r.as_matrix()
-                    gripper_pose[:3, :3] = np.dot(gripper_pose[:3, :3], delta_rot_pred)
-                else:
+                if tilt and yaw:
                     print('speed', speed)
                     if speed > 0.8:
                         delta_xyz_pred = xyz * speed * 0.01
                     else:
                         delta_xyz_pred = xyz * speed * 0.001
+                    gripper_pose[:3, 3] = gripper_pose[:3, 3] + gripper_pose[:3, 0] * delta_xyz_pred[0] + gripper_pose[:3, 1] * delta_xyz_pred[1] + gripper_pose[:3, 2] * delta_xyz_pred[2]
+                    print('rot', rot)
+                    r = R.from_euler('zyx', rot, degrees=True)
+                    delta_rot_pred = r.as_matrix()
+                    gripper_pose[:3, :3] = np.dot(gripper_pose[:3, :3], delta_rot_pred)
+                elif yaw:
+                    print('speed', speed)
+                    xyz[0] = -1*xyz[0]
+                    if speed > 0.75:
+                        delta_xyz_pred = xyz * speed * 0.005
+                    else:
+                        delta_xyz_pred = xyz * speed * 0.001
+                    gripper_pose[:3, 3] = gripper_pose[:3, 3] + gripper_pose[:3, 0] * delta_xyz_pred[0] + gripper_pose[:3, 1] * delta_xyz_pred[1] + gripper_pose[:3, 2] * delta_xyz_pred[2]
+                    # only x-axis
+                    rot[0] = 0.0
+                    rot[1] = 0.0
+                    r = R.from_euler('zyx', rot, degrees=True)
+                    delta_rot_pred = r.as_matrix()
+                    gripper_pose[:3, :3] = np.dot(gripper_pose[:3, :3], delta_rot_pred)
+                else:
+                    print('speed', speed)
+                    if speed > 0.8: #3DoF 0.8
+                        delta_xyz_pred = xyz * speed * 0.01 #3DoF 0.01
+                    else:
+                        delta_xyz_pred = xyz * speed * 0.001 #3DoF 0.001
                     #gripper_pose[:3, 3] += delta_xyz_pred
                     gripper_pose[:3, 3] = gripper_pose[:3, 3] + gripper_pose[:3, 0] * delta_xyz_pred[0] + gripper_pose[:3, 1] * delta_xyz_pred[1] + gripper_pose[:3, 2] * delta_xyz_pred[2]
                 rob_arm.movement(gripper_pose)
@@ -303,7 +313,7 @@ def main():
                 hole_dir = rob_arm.get_object_matrix(hole_top)[:3, 0].reshape(3, 1)
                 dot_product = np.dot(peg_dir, hole_dir)
                 angle = math.degrees(math.acos(dot_product / (np.linalg.norm(peg_dir) * np.linalg.norm(hole_dir))))
-                if angle > 1.0 and not tilt:
+                if angle > 1.0 and not tilt :
                     print('break! Angle is too large')
                     break
                 if angle > 80 and tilt:
@@ -312,9 +322,9 @@ def main():
                 if cnt >= 30:
                     print('break! Too long')
                     break
-                if speed > 0.8:
+                if speed > 0.75: #3DoF 0.8
                     cnt_end = 0
-                elif speed <= 0.8:
+                elif speed <= 0.75: #3DoF 0.8
                     cnt_end += 1
                     if cnt_end > 3:
                         rob_arm.movement(gripper_pose)

@@ -351,7 +351,7 @@ def parse_args():
     parser.add_argument('--hole', type=str, default='square', help='specify object hole')
     parser.add_argument('--iter', type=int, default=3, help='nb of input data')
     parser.add_argument('--date', type=str, default='2022-02-11_testing', help='date')
-    parser.add_argument('--data_root', type=str, default='/home/luben/data/pdc/logs_proto', help='data root path')
+    parser.add_argument('--data_root', type=str, default='/home/luben/data/pdc/logs_proto/2022-06-16-coarse', help='data root path')
 
     return parser.parse_args()
 
@@ -364,11 +364,11 @@ def main(args):
     im_data_path = os.path.join(data_root, im_data)
 
     # create folder
-    cwd = os.getcwd()
-    os.chdir(data_root)
-    if not os.path.exists(im_data):
-        os.makedirs(im_data)
-    os.chdir(cwd)
+    #cwd = os.getcwd()
+    #os.chdir(data_root)
+    if not os.path.exists(im_data_path):
+        os.makedirs(im_data_path)
+    #os.chdir(cwd)
 
     info_dic = {}
     cnt = 0

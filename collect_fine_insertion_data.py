@@ -380,7 +380,8 @@ def parse_args():
     parser.add_argument('--hole', type=str, default='square', help='specify object hole')
     parser.add_argument('--iter', type=int, default=3, help='nb of input data')
     parser.add_argument('--date', type=str, default='2022-02-11_testing', help='date')
-    parser.add_argument('--data_root', type=str, default='/home/luben/data/pdc/logs_proto', help='data root path')
+    parser.add_argument('--data_root', type=str, default='/home/luben/data/pdc/logs_proto/2022-06-20-fine', help='data root path')
+    parser.add_argument('--offset_angle', type=int, default=5, help='offset angle')
 
     return parser.parse_args()
 
@@ -393,11 +394,11 @@ def main(args):
     im_data_path = os.path.join(data_root, im_data)
 
     # create folder
-    cwd = os.getcwd()
-    os.chdir(data_root)
-    if not os.path.exists(im_data):
-        os.makedirs(im_data)
-    os.chdir(cwd)
+    #cwd = os.getcwd()
+    #os.chdir(data_root)
+    if not os.path.exists(im_data_path):
+        os.makedirs(im_data_path)
+    #os.chdir(cwd)
 
     info_dic = {}
     cnt = 0
@@ -624,8 +625,8 @@ def main(args):
                     rob_arm.finish()
                     print('skip', dist)
                     continue
-                _, tilt_degree = random_tilt(rob_arm, ['UR5_ikTarget'], 0, 5)
-                random_yaw(rob_arm, ['UR5_ikTarget'], 5)
+                _, tilt_degree = random_tilt(rob_arm, ['UR5_ikTarget'], 0, args.offset_angle)
+                random_yaw(rob_arm, ['UR5_ikTarget'], args.offset_angle)
                 #print('tilt degree', tilt_degree)
                 gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
                 cnt_xyz = gripper_pose[:3, 3]

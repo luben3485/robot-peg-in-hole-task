@@ -183,7 +183,8 @@ class CollectInsert(object):
 
             # Get depth image
             depth = self.rob_arm.get_depth(cam_name=self.rgbd_cam[idx], near_plane=0.01, far_plane=1.5)
-            depth_mm = (depth * 1000).astype(np.uint8)
+            #depth_mm = (depth * 1000).astype(np.uint8)
+            depth_mm = (depth * 1000).astype(np.uint16)
 
             # Get seg_peg rgb image
             seg_peg_rgb = self.rob_arm.get_rgb(cam_name=self.seg_peg_cam[idx])
@@ -199,11 +200,11 @@ class CollectInsert(object):
             seg[y_idx, x_idx] = 2
             y_idx, x_idx = np.nonzero(seg_peg_rgb)
             seg[y_idx, x_idx] = 1
-
+            '''
             # set bg to 255 for depth image
             y_idx, x_idx = np.where(seg == 0)
             depth_mm[y_idx, x_idx] = 255
-
+            '''
             # save images
             file_name = str(sample).zfill(5) + '_' + str(step).zfill(2) + '.png'
             cv2.imwrite(os.path.join(color_folder_path[idx], file_name), rgb)

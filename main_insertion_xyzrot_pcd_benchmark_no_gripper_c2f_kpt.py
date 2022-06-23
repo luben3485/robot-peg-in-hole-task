@@ -325,7 +325,7 @@ def main(args):
     #coarse_mover = Mover(model_path='kpts/2022-03-12_12-25', model_name='pointnet2_kpts', checkpoint_name='best_model_e_65.pth', use_cpu=False, out_channel=9)
     #coarse_mover = CoarseMover(model_path='kpts/2022-04-23_04-13', model_name='pointnet2_kpts', checkpoint_name='best_model_e_117.pth', use_cpu=False, out_channel=9)
     # original
-    coarse_mover = CoarseMover(model_path='kpts/2022-06-10_22-43', model_name='pointnet2_kpts',checkpoint_name='best_model_e_101.pth', use_cpu=False, out_channel=9)
+    coarse_mover = CoarseMover(model_path='kpts/2022-06-22_00-05', model_name='pointnet2_kpts',checkpoint_name='best_model_e_80.pth', use_cpu=False, out_channel=9)
     # no heatamp
     #coarse_mover = CoarseMover(model_path='kpts/2022-06-10_19-49', model_name='pointnet2_kpts',checkpoint_name='best_model_e_100.pth', use_cpu=False, out_channel=9)
     #coarse_mover = CoarseMover(model_path='kpts/2022-05-20_13-40', model_name='pointnet2_kpts', checkpoint_name='best_model_e_125.pth', use_cpu=False, out_channel=9)
@@ -333,7 +333,7 @@ def main(args):
     #noisecoarse_mover = CoarseMover(model_path='kpts/2022-04-25_07-26', model_name='pointnet2_kpts', checkpoint_name='best_model_e_101.pth', use_cpu=False, out_channel=9)
     #fine_mover = FineMover(model_path='offset/2022-04-26_22-24', model_name='pointnet2_offset', checkpoint_name='best_model_e_60.pth', use_cpu=False, out_channel=9)
     #fine_mover = FineMover(model_path='offset/2022-05-18_00-29', model_name='pointnet2_offset',checkpoint_name='best_model_e_90.pth', use_cpu=False, out_channel=9)
-    fine_mover = FineMover(model_path='offset/2022-06-10_22-09', model_name='pointnet2_offset', checkpoint_name='best_model_e_108.pth', use_cpu=False, out_channel=9)
+    fine_mover = FineMover(model_path='offset/2022-06-22_18-44', model_name='pointnet2_offset', checkpoint_name='best_model_e_81.pth', use_cpu=False, out_channel=9)
     #fine_mover = FineMover(model_path='offset/2022-05-26_02-34', model_name='pointnet2_offset',checkpoint_name='best_model_e_81.pth', use_cpu=False, out_channel=9)
     #noisefine_mover = FineMover(model_path='offset/2022-04-25_07-09', model_name='pointnet2_offset', checkpoint_name='best_model_e_64.pth', use_cpu=False, out_channel=9)
     #fine_mover = DSAEMover(model_path='dsae/2022-04-19_15-48', model_name='cnn_dsae', checkpoint_name='best_model_e_72.pth', use_cpu=False, out_channel=9)
@@ -353,8 +353,8 @@ def main(args):
     #selected_hole_list = ['circle_7x10', 'circle_7x11', 'circle_7x12', 'circle_7x13', 'circle_7x14']
     #selected_hole_list = ['square_7x12x12', 'square_7x10x10', 'rectangle_7x8x11', 'rectangle_7x10x13', 'circle_7x10', 'circle_7x12', 'circle_7x14', 'octagon_7x5', 'pentagon_7x7', 'hexagon_7x6']
     #selected_hole_list = [ 'rectangle_7x12x13', 'rectangle_7x10x12', 'square_7x11_5x11_5', 'circle_7x14', 'circle_7x12', 'circle_7x10', 'pentagon_7x7', 'octagon_7x5']
-    #selected_hole_list = ['pentagon_7x7', 'square_7x11_5x11_5', 'circle_7x12', 'rectangle_7x10x12']
-    selected_hole_list = ['square_7x11_5x11_5_squarehole', 'circle_7x12_squarehole']
+    #selected_hole_list = ['square_7x11_5x11_5', 'circle_7x12', 'rectangle_7x10x12', 'pentagon_7x7']
+    selected_hole_list = ['square_7x11_5x11_5_squarehole', 'rectangle_7x10x12_squarehole', 'circle_7x14_squarehole', 'pentagon_7x9_squarehole']
     for selected_hole in selected_hole_list:
         f = open(os.path.join(benchmark_folder, "hole_score.txt"), "a")
         rob_arm = SingleRoboticArm()
@@ -408,7 +408,7 @@ def main(args):
                 rob_arm.set_object_position(hole_name, hole_pos)
                 rob_arm.set_object_quat(hole_name, origin_hole_quat)
                 if yaw:
-                    random_yaw(rob_arm, [hole_name])
+                    random_yaw(rob_arm, [hole_name], degree=20)
                 if tilt:
                     _, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 50)
 

@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 
 kovis/result
+dsae/result
 pcd_benchmark/
 /mover/runs/
 /mover/ckpnt*

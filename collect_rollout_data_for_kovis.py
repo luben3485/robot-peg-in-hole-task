@@ -49,7 +49,7 @@ class CollectInsert(object):
         self.rollout_step = 5
         self.min_speed = 0.001
         self.max_speed = 0.022
-        self.start_offset = [0, 0, 0.02]
+        self.start_offset = [0, 0, 0.00]
         self.tilt = args.tilt
         self.yaw = args.yaw
 
@@ -84,8 +84,12 @@ class CollectInsert(object):
         num_roll = 0
         # set motion vector & speed
         speed = np.random.uniform(self.min_speed, self.max_speed)
-        vec = np.random.rand(3) - 0.5
-        vec = vec / np.linalg.norm(vec)
+        while True:
+            vec = np.random.rand(3) - 0.5
+            vec = vec / np.linalg.norm(vec)
+            if vec[0] > 0.0:
+                break
+
         if self.tilt or self.yaw:
             # for move
             source_rot = self.rob_arm.get_object_matrix(obj_name='UR5_ikTarget')[:3, :3]
@@ -102,11 +106,13 @@ class CollectInsert(object):
             r_euler = record_r.as_euler('zyx', degrees=True)
 
         for step in range(self.rollout_step):
+            '''
             peg_keypoint_bottom_pose = self.rob_arm.get_object_matrix(obj_name=self.peg_bottom)
             hole_keypoint_top_pose = self.rob_arm.get_object_matrix(obj_name=hole_top)
             if (peg_keypoint_bottom_pose[2, 3] - hole_keypoint_top_pose[2, 3]) < (self.start_offset[2] / 2):
                 print('too close...')
                 break
+            '''
             self.save_images(self.sample, step)
             robot_pose = self.rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
             #robot_pose[:3, 3] += vec * speed

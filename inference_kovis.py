@@ -82,7 +82,7 @@ class KOVISMover(object):
         xyz = (vec[:3] / torch.norm(vec[:3])).detach().cpu().numpy()
         if tilt or yaw:
             rot = vec[3:].detach().cpu().numpy()
-            rot *= 10
+            rot *= 5
         else:
             rot = None
         if visualize:
