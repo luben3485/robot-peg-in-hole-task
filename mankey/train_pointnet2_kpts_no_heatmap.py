@@ -5,7 +5,7 @@ Date: Nov 2019
 
 import os
 '''HYPER PARAMETER'''
-os.environ["CUDA_VISIBLE_DEVICES"] = '3'
+os.environ["CUDA_VISIBLE_DEVICES"] = '4'
 import sys
 import torch
 from torch.utils.data import DataLoader
@@ -39,7 +39,7 @@ def parse_args():
     parser.add_argument('--use_cpu', action='store_true', default=False, help='use cpu mode')
     #parser.add_argument('--gpu', type=str, default='0', help='specify gpu device')
     parser.add_argument('--batch_size', type=int, default=32, help='24batch size in training')
-    parser.add_argument('--model', default='pointnet2_kpts', help='model name [default: pointnet_cls]')
+    parser.add_argument('--model', default='pointnet2_kpts_no_heatmap', help='model name [default: pointnet_cls]')
     parser.add_argument('--out_channel', default=9, type=int)
     parser.add_argument('--epoch', default=200, type=int, help='number of epoch in training')
     parser.add_argument('--learning_rate', default=0.001, type=float, help='learning rate in training')
@@ -58,9 +58,9 @@ def construct_dataset(is_train: bool) -> (torch.utils.data.Dataset, SupervisedKe
     db_config.keypoint_yaml_name = 'peg_in_hole.yaml'
     db_config.pdc_data_root = '/tmp2/r09944001/data/pdc'
     if is_train:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220616_coarse_noiseaug3_noscale.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220616_coarse_noiseaug3.txt'
     else:
-        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220616_coarse_noiseaug3_noscale.txt'
+        db_config.config_file_path = '/tmp2/r09944001/robot-peg-in-hole-task/mankey/config/insertion_20220616_coarse_noiseaug3.txt'
     database = SpartanSupervisedKeypointDatabase(db_config)
 
     # Construct torch dataset
@@ -359,7 +359,7 @@ def main(args):
             loss_r = criterion_rmse(delta_rot_pred, delta_rot)
             loss_mask = criterion_rmse(confidence, heatmap_target)
             #loss = loss_kptof + loss_t + loss_mask + loss_r
-            loss = loss_kptof + loss_mask
+            loss = loss_kptof
             loss.backward()
             optimizer.step()
             global_step += 1
@@ -425,7 +425,7 @@ def main(args):
                 torch.save(state, savepath)
             global_epoch += 1
             '''
-            if (kptof_error + mask_error) < (best_kptof_error + best_mask_error):
+            if (kptof_error ) < (best_kptof_error ):
                 best_kptof_error = kptof_error
                 best_xyz_error = xyz_error
                 best_rot_error = rot_error
