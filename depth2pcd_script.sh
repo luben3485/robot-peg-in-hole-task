@@ -1,10 +1,8 @@
 #!/bin/sh
-python depth2pcd.py --folder_path fine_insertion_square_7x12x12_squarehole_2022-06-26-test --offset kpts --aug_data --crop_pcd --visualize
-python depth2pcd.py --folder_path coarse_insertion_square_7x12x12_squarehole_2022-06-26-test --offset kpts --aug_data --visualize
-#python depth2pcd.py --folder_path 2022-06-20-fine-squarehole/fine_insertion_square_7x12x12_squarehole_2022-06-20-noiseaug3 --offset kpts --aug_data
-#python depth2pcd.py --folder_path 2022-06-20-fine-squarehole/fine_insertion_square_7x13x13_squarehole_2022-06-20-noiseaug3 --offset kpts --aug_data
-#python depth2pcd.py --folder_path 2022-06-20-fine-squarehole/fine_insertion_rectangle_7x9x12_squarehole_2022-06-20-noiseaug3 --offset kpts --aug_data
-#python depth2pcd.py --folder_path 2022-06-20-fine-squarehole/fine_insertion_rectangle_7x10x13_squarehole_2022-06-20-noiseaug3 --offset kpts --aug_data
+python depth2pcd.py --folder_path 2022-06-20-fine-squarehole/fine_insertion_square_7x12x12_squarehole_2022-06-20-crop-noiseaug3-rotscale --offset kpts --aug_data --crop_pcd
+python depth2pcd.py --folder_path 2022-06-20-fine-squarehole/fine_insertion_square_7x13x13_squarehole_2022-06-20-crop-noiseaug3-rotscale --offset kpts --aug_data --crop_pcd
+python depth2pcd.py --folder_path 2022-06-20-fine-squarehole/fine_insertion_rectangle_7x9x12_squarehole_2022-06-20-crop-noiseaug3-rotscale --offset kpts --aug_data --crop_pcd
+python depth2pcd.py --folder_path 2022-06-20-fine-squarehole/fine_insertion_rectangle_7x10x13_squarehole_2022-06-20-crop-noiseaug3-rotscale --offset kpts --aug_data --crop_pcd
 
 #python depth2pcd.py --folder_path 2022-06-20-fine-squarehole/fine_insertion_square_7x12x12_squarehole_2022-06-20-crop-noiseaug3-noscale --offset kpts --crop_pcd --aug_data
 #python depth2pcd.py --folder_path 2022-06-20-fine-squarehole/fine_insertion_square_7x13x13_squarehole_2022-06-20-crop-noiseaug3-noscale --offset kpts --crop_pcd --aug_data

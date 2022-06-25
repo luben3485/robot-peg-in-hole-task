@@ -10,7 +10,7 @@ import math
 import tqdm
 import copy
 import argparse
-from PointWOLF import PointWOLF
+#from PointWOLF import PointWOLF
 
 def depth_2_pcd(depth, factor, K):
     xmap = np.array([[j for i in range(depth.shape[0])] for j in range(depth.shape[1])])
