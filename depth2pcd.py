@@ -132,7 +132,7 @@ def parse_args():
     return parser.parse_args()
 
 def main(args):
-    data_root = os.path.join('/home/luben/data/pdc/logs_proto', args.folder_path, 'processed')
+    data_root = os.path.join('/tmp2/r09944001/data/pdc/logs_proto', args.folder_path, 'processed')
     image_folder_path = os.path.join(data_root, 'images')
     pcd_folder_path = os.path.join(data_root, 'pcd')
     if args.offset == 'kpts':
