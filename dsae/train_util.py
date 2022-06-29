@@ -150,7 +150,7 @@ def depth_flip(img, bg):
     img[bg] = 0
     return img
 
-
+'''
 dir_background = 'dataset/background'
 if not path.exists(dir_background):
     print('Downloading background images...')
@@ -166,3 +166,4 @@ if not path.exists(dir_fractal):
     os.makedirs(dir_fractal)
     fractal_save(4096, [128, 128], dir_fractal)
 fractal_imgs = listdir(dir_fractal)
+'''

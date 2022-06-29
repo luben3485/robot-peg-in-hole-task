@@ -1,7 +1,7 @@
 #!/bin/sh
 ### DSAE
-python collect_rollout_data_for_dsae.py --date 2022-06-22-notilt-noyaw --iter 75 --data_type test
-python collect_rollout_data_for_dsae.py --date 2022-06-22-notilt-noyaw --iter 5000 --data_type train
+python collect_rollout_data_for_dsae.py --date 2022-06-26-notilt-yaw --iter 35 --data_type test --yaw
+python collect_rollout_data_for_dsae.py --date 2022-06-26-notilt-yaw --iter 8750 --data_type train --yaw
 
 ### KOVIS
 ### round hole

@@ -127,9 +127,9 @@ def main():
     if not os.path.exists(benchmark_folder):
         os.makedirs(benchmark_folder)
     tilt = False
-    yaw = True
-    kovis_mover = KOVISMover(ckpt_folder='insert-0619-notilt-yaw') #tilt 0512-2 notilt 0506 insert-0616-notilt-yaw
-    iter_num = 100
+    yaw = False
+    kovis_mover = KOVISMover(ckpt_folder='insert-0601') #tilt 0512-2 notilt 0506 0601 insert-0616-notilt-yaw insert-0619-notilt-yaw
+    iter_num = 5
     cam_name_list = ['vision_eye_left', 'vision_eye_right']
     peg_top = 'peg_dummy_top'
     peg_bottom = 'peg_dummy_bottom'
@@ -141,7 +141,8 @@ def main():
     #selected_hole_list = ['octagon_7x5', 'pentagon_7x7', 'hexagon_7x6']
     #selected_hole_list = ['square_7x12x12', 'square_7x10x10', 'square_7x14x14', 'rectangle_7x8x11', 'rectangle_7x10x13', 'rectangle_7x12x15', 'circle_7x10', 'circle_7x12', 'circle_7x14']
     #selected_hole_list = ['rectangle_7x12x13', 'rectangle_7x10x12', 'square_7x11_5x11_5', 'circle_7x14', 'circle_7x10', 'pentagon_7x7', 'octagon_7x5']
-    selected_hole_list = ['square_7x11_5x11_5_squarehole', 'rectangle_7x10x12_squarehole', 'circle_7x14_squarehole', 'pentagon_7x9_squarehole']
+    #selected_hole_list = ['square_7x11_5x11_5_squarehole', 'rectangle_7x10x12_squarehole', 'circle_7x14_squarehole', 'pentagon_7x9_squarehole']
+    selected_hole_list = ['square_7x11_5x11_5']
     for selected_hole in selected_hole_list:
         f = open(os.path.join(benchmark_folder, "hole_score.txt"), "a")
         rob_arm = SingleRoboticArm()
@@ -157,6 +158,7 @@ def main():
 
         insertion_succ_list = []
         error_x, error_y = [], []
+        time_list = []
         for iter in range(iter_num):
             rob_arm = SingleRoboticArm()
             print('=' * 8 + str(iter) + '=' * 8)
@@ -167,7 +169,8 @@ def main():
             rob_arm.set_object_quat(hole_name, origin_hole_quat)
             '''
             #hole_pos = np.array([random.uniform(0.02, 0.18), random.uniform(-0.45, -0.5), 0.035])  # np.array([random.uniform(0.0, 0.2), random.uniform(-0.45, -0.55), 0.035])
-            hole_pos = np.array([0.1, -0.475, 0.035])
+            #hole_pos = np.array([0.1, -0.475, 0.035])
+            hole_pos = np.array([0.1, -0.525, 0.035])
             rob_arm.set_object_position(hole_name, hole_pos)
             rob_arm.set_object_quat(hole_name, origin_hole_quat)
             if yaw:
@@ -201,6 +204,10 @@ def main():
                 delta_move = np.array([random.uniform(-0.02, 0.02), random.uniform(0.0, 0.04), random.uniform(0.02, 0.03)])
             else:
                 delta_move = np.array([random.uniform(-0.04, 0.04), random.uniform(-0.04, 0.04), random.uniform(0.07, 0.15)])
+                # 15cm
+                #delta_move = np.array([0.04, 0.04, 0.14])
+                # 30cm
+                delta_move = np.array([0.08, 0.08, 0.28])
             start_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
             hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
             start_pos = hole_top_pose[:3, 3]
@@ -260,7 +267,7 @@ def main():
                 gripper_pose[:3, 3] += delta_xyz_pred
                 rob_arm.movement(gripper_pose)
             '''
-
+            start_time = time.time()
             # closed-loop
             cnt = 0
             cnt_end = 0
@@ -272,7 +279,7 @@ def main():
                 if tilt and yaw:
                     print('speed', speed)
                     if speed > 0.8:
-                        delta_xyz_pred = xyz * speed * 0.01
+                        delta_xyz_pred = xyz * speed * 0.001
                     else:
                         delta_xyz_pred = xyz * speed * 0.001
                     gripper_pose[:3, 3] = gripper_pose[:3, 3] + gripper_pose[:3, 0] * delta_xyz_pred[0] + gripper_pose[:3, 1] * delta_xyz_pred[1] + gripper_pose[:3, 2] * delta_xyz_pred[2]
@@ -296,11 +303,30 @@ def main():
                     gripper_pose[:3, :3] = np.dot(gripper_pose[:3, :3], delta_rot_pred)
                 else:
                     print('speed', speed)
+                    '''
+                    # normal
                     if speed > 0.8: #3DoF 0.8
-                        delta_xyz_pred = xyz * speed * 0.01 #3DoF 0.01
+                        delta_xyz_pred = xyz * speed * 0.001  # 3DoF 0.01
                     else:
                         delta_xyz_pred = xyz * speed * 0.001 #3DoF 0.001
-                    #gripper_pose[:3, 3] += delta_xyz_pred
+                    '''
+                    # 15cm
+                    '''
+                    if speed >= 0.89:  #15cm 0.89~:0.05 0.8~0.89:0.02 ~0.8:0.001
+                        delta_xyz_pred = xyz * speed * 0.05
+                    elif speed > 0.8 and speed < 0.89:  # 3DoF 0.8
+                        delta_xyz_pred = xyz * speed * 0.025  # 3DoF 0.01
+                    else:
+                        delta_xyz_pred = xyz * speed * 0.005  # 3DoF 0.001
+                    '''
+                    #30cm
+                    if speed >= 0.89:
+                        delta_xyz_pred = xyz * speed * 0.05
+                    elif speed > 0.8 and speed < 0.89: #3DoF 0.8
+                        delta_xyz_pred = xyz * speed * 0.02 #3DoF 0.01
+                    else:
+                        delta_xyz_pred = xyz * speed * 0.008 #3DoF 0.001
+
                     gripper_pose[:3, 3] = gripper_pose[:3, 3] + gripper_pose[:3, 0] * delta_xyz_pred[0] + gripper_pose[:3, 1] * delta_xyz_pred[1] + gripper_pose[:3, 2] * delta_xyz_pred[2]
                 rob_arm.movement(gripper_pose)
 
@@ -322,11 +348,11 @@ def main():
                 if cnt >= 30:
                     print('break! Too long')
                     break
-                if speed > 0.75: #3DoF 0.8
+                if speed > 0.8: #3DoF 0.8 #4 6DoF 0.75
                     cnt_end = 0
-                elif speed <= 0.75: #3DoF 0.8
+                elif speed <= 0.8: #3DoF 0.8 #4 6DoF 0.75
                     cnt_end += 1
-                    if cnt_end > 3:
+                    if cnt_end > 0: #3DoF 3 15cm:0 30cm:0
                         rob_arm.movement(gripper_pose)
                         # compute distance error
                         hole_top_pose = rob_arm.get_object_matrix(hole_top)
@@ -340,11 +366,19 @@ def main():
                         break
 
                 cnt = cnt + 1
+            # tmp for 15cm and 30cm
+
+            robot_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
+            #robot_pose[:3, 3] += robot_pose[:3, 2] * 0.005 # 15cm
+            robot_pose[:3, 3] += robot_pose[:3, 2] * 0.0035  # 30cm
+            rob_arm.movement(robot_pose)
 
             # insertion
             robot_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-            robot_pose[:3, 3] -= robot_pose[:3, 0] * 0.25  # x-axis
+            robot_pose[:3, 3] -= robot_pose[:3, 0] * 0.08  # x-axis  #  0.25
             rob_arm.movement(robot_pose)
+
+
 
             # record insertion
             peg_keypoint_bottom_pose = rob_arm.get_object_matrix(obj_name=peg_bottom)
@@ -355,6 +389,9 @@ def main():
             if dist < 0.025:
                 print('success!')
                 insertion_succ_list.append(1)
+                end_time = time.time()
+                time_list.append((end_time - start_time))
+                print('Time elasped:{:.02f}'.format((end_time - start_time)))
             else:
                 print('fail!')
                 insertion_succ_list.append(0)
@@ -366,9 +403,12 @@ def main():
             rob_arm.movement(robot_pose)
             '''
         insertion_succ = sum(insertion_succ_list) / len(insertion_succ_list)
+        time_ = sum(time_list) / len(time_list)
         msg = '* ' + hole_name + ' hole success rate : ' + str(insertion_succ * 100) + '% (' + str(sum(insertion_succ_list)) + '/' + str(len(insertion_succ_list)) + ')'
         print(msg)
         f.write(msg + '\n')
+        print('time:' + str(time_))
+        f.write('time:' + str(time_) + '\n')
         if len(error_x)!=0 and len(error_y)!=0:
             print('average x error', sum(error_x) / len(error_x))
             print('average y error', sum(error_y) / len(error_y))

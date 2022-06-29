@@ -78,6 +78,34 @@ def scale_point_cloud(data, hole_top_pose, seg_label, min_scale=0.8, max_scale=1
     new_data = np.array(new_data)
     return new_data
 
+def rotate_point_cloud(data, hole_top_pose, seg_label, min_angle=0, max_angle=90):
+    """ Randomly scale point cloud along x-axis and y-axis of hole object.
+        Input:
+          Nx3 array, original point clouds
+        Return:
+          Nx3 array, scaled point clouds
+    """
+    angle = np.random.uniform(min_angle, max_angle, (1,))
+    rad = math.radians(angle)
+    transform = np.array([[1   , 0, 0, 0],
+                          [0, math.cos(rad), -math.sin(rad), 0],
+                          [0, math.sin(rad), math.cos(rad), 0],
+                          [0   , 0, 0, 1]])
+
+    new_data = []
+    for idx, xyz in enumerate(data):
+        if seg_label[idx] == 1 and np.linalg.norm(hole_top_pose[:3, 3]*1000 - xyz) > 35:  #circle 30
+            new_xyz = xyz - hole_top_pose[:3, 3]*1000
+            new_xyz = np.dot(np.transpose(hole_top_pose[:3, :3]), new_xyz)
+            new_xyz = np.dot(transform[:3, :3], new_xyz)
+            new_xyz = np.dot(hole_top_pose[:3, :3], new_xyz)
+            new_xyz = new_xyz + hole_top_pose[:3, 3]*1000
+            new_data.append(new_xyz)
+        else:
+            new_data.append(xyz)
+    new_data = np.array(new_data)
+    return new_data
+
 def specific_point_dropout(pc, drop_num=300):
     ''' pc: Nx3 '''
     N, C = pc.shape
@@ -201,8 +229,53 @@ def main(args):
 
         if args.aug_data:
             #concat_xyz_in_world = random_point_dropout(concat_xyz_in_world)
-            concat_xyz_in_world = scale_point_cloud(concat_xyz_in_world, hole_top_pose, seg_label)
-            #concat_xyz_in_world = jitter_point_cloud(concat_xyz_in_world, sigma=1, clip=5)
+            if random.uniform(0.0, 1.0) < 0.5:
+                concat_xyz_in_world = scale_point_cloud(concat_xyz_in_world, hole_top_pose, seg_label)
+                concat_xyz_in_world = jitter_point_cloud(concat_xyz_in_world, sigma=1, clip=3)
+            else:
+                concat_xyz_in_world_2 = copy.deepcopy(concat_xyz_in_world)
+
+                concat_xyz_in_world = scale_point_cloud(concat_xyz_in_world, hole_top_pose, seg_label)
+                concat_xyz_in_world_2 = scale_point_cloud(concat_xyz_in_world_2, hole_top_pose, seg_label)
+                concat_xyz_in_world = rotate_point_cloud(concat_xyz_in_world, hole_top_pose, seg_label)
+                concat_xyz_in_world_2 = rotate_point_cloud(concat_xyz_in_world_2, hole_top_pose, seg_label)
+                #concat_xyz_in_world = jitter_point_cloud(concat_xyz_in_world, sigma=1, clip=3)
+                #concat_xyz_in_world_2 = jitter_point_cloud(concat_xyz_in_world_2, sigma=1, clip=3)
+
+                concat_xyz_in_world = np.concatenate((concat_xyz_in_world, concat_xyz_in_world_2), axis=0)
+                pcd = o3d.geometry.PointCloud()
+                pcd.points = o3d.utility.Vector3dVector(concat_xyz_in_world)
+                #o3d.io.write_point_cloud(os.path.join(visualize_folder_path, 'pcd_' + str(key) + '.ply'), pcd)
+
+                down_pcd = pcd.voxel_down_sample(voxel_size=1)
+                concat_xyz_in_world_raw = np.asarray(down_pcd.points)
+                concat_xyz_in_world = np.zeros((8000,3))
+                num = concat_xyz_in_world_raw.shape[0]
+                if num < 8000:
+                    concat_xyz_in_world[0: num, :] = concat_xyz_in_world_raw[0: num, :]
+                    concat_xyz_in_world[num:, :] = np.repeat(concat_xyz_in_world_raw[:1], 8000-num, axis=0)
+                else:
+                    concat_xyz_in_world = concat_xyz_in_world_raw[:8000, :]
+
+                concat_xyz_in_world = jitter_point_cloud(concat_xyz_in_world, sigma=1, clip=3)
+
+                hole_seg_xyz = []
+                seg_label = []
+                seg_color = []
+                for xyz in concat_xyz_in_world:
+                    x = np.dot(x_normal_vector, xyz / 1000)
+                    y = np.dot(y_normal_vector, xyz / 1000)
+                    z = np.dot(z_normal_vector, xyz / 1000)
+                    if x >= x_value[0] and x <= x_value[1] and y >= y_value[0] and y <= y_value[1] and z >= z_value[0] and z <= z_value[1]:
+                        hole_seg_xyz.append(xyz)
+                        seg_label.append(1)
+                        seg_color.append([1, 0, 0])
+                    else:
+                        seg_label.append(0)
+                        seg_color.append([0, 0, 1])
+                seg_label = np.array(seg_label)
+                seg_color = np.array(seg_color)
+
             '''pointWOLF
             aug = PointWOLF()
             _, concat_xyz_in_world = aug(concat_xyz_in_world/1000)

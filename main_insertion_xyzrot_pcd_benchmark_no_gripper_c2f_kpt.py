@@ -310,7 +310,7 @@ def predict_dsae_xyzrot_from_multiple_camera(cam_name_list, mover, rob_arm):
 def parse_args():
     '''PARAMETERS'''
     parser = argparse.ArgumentParser()
-    parser.add_argument('--iter', type=int, default=100)
+    parser.add_argument('--iter', type=int, default=4)
 
     return parser.parse_args()
 
@@ -325,23 +325,40 @@ def main(args):
     #coarse_mover = Mover(model_path='kpts/2022-03-12_12-25', model_name='pointnet2_kpts', checkpoint_name='best_model_e_65.pth', use_cpu=False, out_channel=9)
     #coarse_mover = CoarseMover(model_path='kpts/2022-04-23_04-13', model_name='pointnet2_kpts', checkpoint_name='best_model_e_117.pth', use_cpu=False, out_channel=9)
     # original
-    coarse_mover = CoarseMover(model_path='kpts/2022-06-22_00-05', model_name='pointnet2_kpts',checkpoint_name='best_model_e_80.pth', use_cpu=False, out_channel=9)
+    # 3DoF
+    coarse_mover = CoarseMover(model_path='kpts/2022-06-10_22-43', model_name='pointnet2_kpts',checkpoint_name='best_model_e_101.pth', use_cpu=False, out_channel=9)
+    # 6DoF
+    #coarse_mover = CoarseMover(model_path='kpts/2022-06-22_00-05', model_name='pointnet2_kpts',checkpoint_name='best_model_e_100.pth', use_cpu=False, out_channel=9)
+    # rotscale
+    #coarse_mover = CoarseMover(model_path='kpts/2022-06-26_12-35', model_name='pointnet2_kpts',checkpoint_name='best_model_e_80.pth', use_cpu=False, out_channel=9)
     # no heatamp
-    #coarse_mover = CoarseMover(model_path='kpts/2022-06-10_19-49', model_name='pointnet2_kpts',checkpoint_name='best_model_e_100.pth', use_cpu=False, out_channel=9)
-    #coarse_mover = CoarseMover(model_path='kpts/2022-05-20_13-40', model_name='pointnet2_kpts', checkpoint_name='best_model_e_125.pth', use_cpu=False, out_channel=9)
+    #coarse_mover = CoarseMover(model_path='kpts/2022-06-23_17-18', model_name='pointnet2_kpts_no_heatmap',checkpoint_name='best_model_e_131.pth', use_cpu=False, out_channel=9)
+    # no heatmap noscale
+    #coarse_mover = CoarseMover(model_path='kpts/2022-06-24_23-45', model_name='pointnet2_kpts_no_heatmap',checkpoint_name='best_model_e_70.pth', use_cpu=False, out_channel=9)
+    # no scale
+    #coarse_mover = CoarseMover(model_path='kpts/2022-06-23_17-07', model_name='pointnet2_kpts',checkpoint_name='best_model_e_102.pth', use_cpu=False, out_channel=9)
 
-    #noisecoarse_mover = CoarseMover(model_path='kpts/2022-04-25_07-26', model_name='pointnet2_kpts', checkpoint_name='best_model_e_101.pth', use_cpu=False, out_channel=9)
-    #fine_mover = FineMover(model_path='offset/2022-04-26_22-24', model_name='pointnet2_offset', checkpoint_name='best_model_e_60.pth', use_cpu=False, out_channel=9)
-    #fine_mover = FineMover(model_path='offset/2022-05-18_00-29', model_name='pointnet2_offset',checkpoint_name='best_model_e_90.pth', use_cpu=False, out_channel=9)
-    fine_mover = FineMover(model_path='offset/2022-06-22_18-44', model_name='pointnet2_offset', checkpoint_name='best_model_e_81.pth', use_cpu=False, out_channel=9)
+    # original
+    # 3DoF
+    fine_mover = FineMover(model_path='offset/2022-06-10_22-09', model_name='pointnet2_offset', checkpoint_name='best_model_e_108.pth', use_cpu=False, out_channel=9)
+    # 6DoF
+    #fine_mover = FineMover(model_path='offset/2022-06-23_16-36', model_name='pointnet2_offset', checkpoint_name='best_model_e_100.pth', use_cpu=False, out_channel=9)
+    # rotscale
+    #fine_mover = FineMover(model_path='offset/2022-06-26_12-51', model_name='pointnet2_offset', checkpoint_name='best_model_e_80.pth', use_cpu=False, out_channel=9)
+    # noscale
+    #fine_mover = FineMover(model_path='offset/2022-06-23_16-40', model_name='pointnet2_offset', checkpoint_name='best_model_e_100.pth', use_cpu=False, out_channel=9)
+    # nocrop
+    #fine_mover = FineMover(model_path='offset/2022-06-23_19-20', model_name='pointnet2_offset', checkpoint_name='best_model_e_100.pth', use_cpu=False, out_channel=9)
+
     #fine_mover = FineMover(model_path='offset/2022-05-26_02-34', model_name='pointnet2_offset',checkpoint_name='best_model_e_81.pth', use_cpu=False, out_channel=9)
     #noisefine_mover = FineMover(model_path='offset/2022-04-25_07-09', model_name='pointnet2_offset', checkpoint_name='best_model_e_64.pth', use_cpu=False, out_channel=9)
     #fine_mover = DSAEMover(model_path='dsae/2022-04-19_15-48', model_name='cnn_dsae', checkpoint_name='best_model_e_72.pth', use_cpu=False, out_channel=9)
 
     iter_num = args.iter
     gripper_init_move = False
-    tilt = True
-    yaw = True
+    tilt = False
+    yaw = False
+    crop_pcd = True
     #cam_name_list = ['vision_eye_left', 'vision_eye_right']
     cam_name_list = ['vision_eye_front']
     peg_top = 'peg_dummy_top'
@@ -354,8 +371,11 @@ def main(args):
     #selected_hole_list = ['square_7x12x12', 'square_7x10x10', 'rectangle_7x8x11', 'rectangle_7x10x13', 'circle_7x10', 'circle_7x12', 'circle_7x14', 'octagon_7x5', 'pentagon_7x7', 'hexagon_7x6']
     #selected_hole_list = [ 'rectangle_7x12x13', 'rectangle_7x10x12', 'square_7x11_5x11_5', 'circle_7x14', 'circle_7x12', 'circle_7x10', 'pentagon_7x7', 'octagon_7x5']
     #selected_hole_list = ['square_7x11_5x11_5', 'circle_7x12', 'rectangle_7x10x12', 'pentagon_7x7']
-    selected_hole_list = ['square_7x11_5x11_5_squarehole', 'rectangle_7x10x12_squarehole', 'circle_7x14_squarehole', 'pentagon_7x9_squarehole']
+    #selected_hole_list = ['square_7x11_5x11_5_squarehole', 'rectangle_7x10x12_squarehole', 'circle_7x14_squarehole', 'pentagon_7x9_squarehole']
+    selected_hole_list = ['square_7x11_5x11_5']
+
     for selected_hole in selected_hole_list:
+
         f = open(os.path.join(benchmark_folder, "hole_score.txt"), "a")
         rob_arm = SingleRoboticArm()
         hole_name = hole_setting[selected_hole][0]
@@ -380,6 +400,7 @@ def main(args):
         r_error = []
         t_error = []
         skip_cnt = 0
+        time_list = []
         for iter in range(iter_num):
             rob_arm = SingleRoboticArm()
             print('=' * 8 + str(iter) + '=' * 8)
@@ -405,8 +426,24 @@ def main(args):
             else:
                 #hole_pos = np.array([random.uniform(0.0, 0.2), random.uniform(-0.45, -0.55), 0.035])
                 hole_pos = np.array([random.uniform(0.02, 0.18), random.uniform(-0.52574, -0.44574), origin_hole_pos[2]]) #np.array([random.uniform(0.0, 0.2), random.uniform(-0.45, -0.55), 0.035])
+                # tmp compute time
+                hole_pos = np.array([0.1, -0.525, 0.035])
                 rob_arm.set_object_position(hole_name, hole_pos)
                 rob_arm.set_object_quat(hole_name, origin_hole_quat)
+                gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
+                hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
+                # 15cm
+                #delta_move = np.array([0.04, 0.04, 0.14])
+                # 30cm
+                delta_move = np.array([0.08, 0.08, 0.28])
+                gripper_pose[:3, 3] = hole_top_pose[:3, 3] + delta_move
+                rob_arm.movement(gripper_pose)
+
+                #tmp hide
+                '''
+                rob_arm.set_object_position(hole_name, hole_pos)
+                rob_arm.set_object_quat(hole_name, origin_hole_quat)
+                '''
                 if yaw:
                     random_yaw(rob_arm, [hole_name], degree=20)
                 if tilt:
@@ -441,6 +478,7 @@ def main(args):
             #_, tilt_degree = random_tilt(rob_arm, ['UR5_ikTarget'], degree, degree + 0.1)
             #_, tilt_degree = random_tilt_2d(rob_arm, ['UR5_ikTarget'], degree)
             '''
+            start_time = time.time()
 
             # coarse approach
             gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
@@ -462,7 +500,7 @@ def main(args):
                 rot_matrix = np.dot(gripper_pose[:3, :3], delta_rot_pred[:3, :3])
                 gripper_pose[:3, :3] = rot_matrix
                 gripper_pose[:3, 3] += delta_xyz_pred #(3,)
-                gripper_pose[:3, 3] += np.array(rot_matrix[:3, 0]*0.010) # tmp for kpts_no_oft
+                gripper_pose[:3, 3] += np.array(rot_matrix[:3, 0]*0.01) # test 0.005   #demo 0.01
                 rob_arm.movement(gripper_pose)
                 '''
                 gripper_pose_after = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
@@ -482,13 +520,13 @@ def main(args):
                 angle = math.acos(dot_product / (np.linalg.norm(peg_hole_dir) * np.linalg.norm(hole_dir)))  # rad
                 peg_hole_dis = np.linalg.norm(peg_hole_dir)
                 c_kpt_yz_error = peg_hole_dis * math.sin(angle) *1000
-                print('coarse keypiont error', c_kpt_error)
-                print('coarse keypiont yz error', c_kpt_yz_error)
+                #print('coarse keypiont error', c_kpt_error)
+                #print('coarse keypiont yz error', c_kpt_yz_error)
                 peg_dir = rob_arm.get_object_matrix(peg_bottom)[:3, 0].reshape(1, 3)
                 hole_dir = rob_arm.get_object_matrix(hole_top)[:3, 0].reshape(3, 1)
                 dot_product = np.dot(peg_dir, hole_dir)
                 c_dir_error = math.degrees(math.acos(dot_product / (np.linalg.norm(peg_dir) * np.linalg.norm(hole_dir))))
-                print('coarse direction error', c_dir_error)
+                #print('coarse direction error', c_dir_error)
                 '''
                 if c_dir_error > 30:
                     print('crash! Angle is too large on coarse approach')
@@ -511,10 +549,10 @@ def main(args):
                     #delta_xyz_pred, _ = predict_kpts_xyzrot_from_multiple_camera(cam_name_list, gripper_pose, fine_mover, rob_arm)
                     #delta_xyz_pred, delta_rot_pred = predict_kpts_no_oft_from_multiple_camera(cam_name_list, gripper_pose, fine_mover, rob_arm)
                     #delta_xyz_pred, delta_rot_pred = predict_dsae_xyzrot_from_multiple_camera(cam_name_list, fine_mover, rob_arm)
-                    delta_xyz_pred, delta_rot_pred, delta_rot_euler_pred = predict_offset_from_multiple_camera(cam_name_list, gripper_pose, fine_mover, rob_arm, crop_pcd=True)
+                    delta_xyz_pred, delta_rot_pred, delta_rot_euler_pred = predict_offset_from_multiple_camera(cam_name_list, gripper_pose, fine_mover, rob_arm, crop_pcd=crop_pcd)
                     step_size = np.linalg.norm(delta_xyz_pred)
-                    print(delta_xyz_pred)
-                    print(delta_rot_euler_pred)
+                    print('step_size', step_size)
+                    print('delta_rot_euler_pred', delta_rot_euler_pred)
                     #rot_matrix = np.dot(gripper_pose[:3, :3], delta_rot_pred[:3, :3])
                     rot_matrix = np.dot(delta_rot_pred[:3, :3], gripper_pose[:3, :3])
                     gripper_pose[:3, :3] = rot_matrix
@@ -529,18 +567,18 @@ def main(args):
                     angle = math.acos(dot_product / (np.linalg.norm(peg_hole_dir) * np.linalg.norm(hole_dir)))  # rad
                     peg_hole_dis = np.linalg.norm(peg_hole_dir)
                     f_kpt_yz_error = peg_hole_dis * math.sin(angle) * 1000
-                    print('fine keypiont error', f_kpt_error)
-                    print('fine keypiont_yz error', f_kpt_yz_error)
+                    #print('fine keypiont error', f_kpt_error)
+                    #print('fine keypiont_yz error', f_kpt_yz_error)
                     peg_dir = rob_arm.get_object_matrix(peg_bottom)[:3, 0].reshape(1, 3)
                     hole_dir = rob_arm.get_object_matrix(hole_top)[:3, 0].reshape(3, 1)
                     dot_product = np.dot(peg_dir, hole_dir)
                     f_dir_error = math.degrees(
                         math.acos(dot_product / (np.linalg.norm(peg_dir) * np.linalg.norm(hole_dir))))
-                    print('fine direction error', f_dir_error)
+                    #print('fine direction error', f_dir_error)
                     if f_dir_error > 20.0:
                         print('crash! Angle is too large.')
                         break
-                    if (step_size < 0.005 and (abs(delta_rot_euler_pred)< 1.5).all()) or cnt >= 5 :
+                    if (step_size < 0.01 and (abs(delta_rot_euler_pred)< 1.5).all()) or cnt >= 1: #0.005 5or10 #15cm 0.01 1
                         print('servoing done!')
                         break
                     cnt = cnt + 1
@@ -550,6 +588,7 @@ def main(args):
                 robot_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
                 r_error.append(np.sqrt(np.mean((hole_keypoint_top_pose[:3, :3] - robot_pose[:3, :3]) ** 2)))
                 t_error.append(np.sqrt(np.mean((hole_keypoint_top_pose[:3, 3] - robot_pose[:3, 3]) ** 2)))
+                print('t_error', np.sqrt(np.mean((hole_keypoint_top_pose[:3, 3] - robot_pose[:3, 3]) ** 2)))
 
                 # insertion
                 robot_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
@@ -569,6 +608,9 @@ def main(args):
                     #succ_kpt_yz_error_list.append(f_kpt_yz_error)
                     #succ_dir_error_list.append(f_dir_error)
                     insertion_succ_list.append(1)
+                    end_time = time.time()
+                    time_list.append((end_time - start_time))
+                    print('Time elasped:{:.02f}'.format((end_time - start_time)))
                 else:
                     print('fail')
                     #fail_kpt_error_list.append(f_kpt_error)
@@ -583,6 +625,7 @@ def main(args):
                 robot_pose[:3, 3] += robot_pose[:3, 0] * 0.1  # x-axis
                 rob_arm.movement(robot_pose)
                 '''
+        time_ = sum(time_list) / len(time_list)
         r_error = sum(r_error) / len(r_error)
         t_error = sum(t_error) / len(t_error)
         insertion_succ = sum(insertion_succ_list) / len(insertion_succ_list)
@@ -591,6 +634,9 @@ def main(args):
         f.write('* ' + selected_hole + '\n')
         f.write(msg + '\n')
         f.write('    * r t error' + str(r_error) + ' ' + str(t_error) + '\n')
+        print('time:' + str(time_))
+        f.write('    * time:' + str(time_) + '\n')
+
         '''
         if len(kpt_error_list) != 0 and len(kpt_yz_error_list) != 0 and len(dir_error_list) != 0:
             kpt_error = sum(kpt_error_list) / len(kpt_error_list)

@@ -245,7 +245,7 @@ class FineMover(object):
                 delta_rot_euler_pred = delta_rot_euler_pred * 50
             elif method=='fine':
                 delta_xyz_pred = delta_xyz_pred / 200
-                delta_rot_euler_pred = delta_rot_euler_pred * 5
+                delta_rot_euler_pred = delta_rot_euler_pred * 10
             r = R.from_euler('zyx', delta_rot_euler_pred, degrees=True)
             delta_rot_pred = r.as_matrix()
 

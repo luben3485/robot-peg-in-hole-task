@@ -7,7 +7,7 @@ References:
     [2]: https://github.com/tensorflow/tensorflow/issues/6271
 """
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '6'
+#os.environ["CUDA_VISIBLE_DEVICES"] = '6'
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -247,8 +247,8 @@ class DSAE(nn.Module):
         kpts = kpts.view(b, c * 2)
         # kpts (b, n, 2)
         recon = self.decoder(kpts)
-        delta_xyz_pred, delta_rot_euler_pred = self.actionnet(kpts)
-        return delta_xyz_pred, delta_rot_euler_pred, recon
+        delta_xyz_pred, delta_rot_euler_pred, speed_pred = self.actionnet(kpts)
+        return delta_xyz_pred, delta_rot_euler_pred, recon, speed_pred
     
     def forward_inference(self, x):
         kpts = self.encoder(x)
@@ -256,8 +256,8 @@ class DSAE(nn.Module):
         kpts = kpts.view(b, c * 2)
         # kpts (b, n, 2)
         recon = self.decoder(kpts)
-        delta_xyz_pred, delta_rot_euler_pred = self.actionnet(kpts)
-        return delta_xyz_pred, delta_rot_euler_pred, recon, kpts.view(b, c, _2)
+        delta_xyz_pred, delta_rot_euler_pred, speed_pred = self.actionnet(kpts)
+        return delta_xyz_pred, delta_rot_euler_pred, recon, speed_pred, kpts.view(b, c, _2)
 
 
 class DSAE_Loss(object):
@@ -291,23 +291,42 @@ class DSAE_Loss(object):
 class ActionNet(nn.Module):
     def __init__(self):
         super(ActionNet, self).__init__()
-        self.fc1 = nn.Linear(32, 128)
-        self.bn1 = nn.BatchNorm1d(128)
-        self.fc2 = nn.Linear(128, 128)
-        self.bn2 = nn.BatchNorm1d(128)
-        self.fc3 = nn.Linear(128, 6)
+        self.fc1_t = nn.Linear(32, 128)
+        self.bn1_t = nn.BatchNorm1d(128)
+        self.fc2_t = nn.Linear(128, 128)
+        self.bn2_t = nn.BatchNorm1d(128)
+        self.fc3_t = nn.Linear(128, 3)
+        
+        self.fc1_r = nn.Linear(32, 128)
+        self.bn1_r = nn.BatchNorm1d(128)
+        self.fc2_r = nn.Linear(128, 128)
+        self.bn2_r = nn.BatchNorm1d(128)
+        self.fc3_r = nn.Linear(128, 3)
+        
+        self.fc1_v = nn.Linear(32, 128)
+        self.bn1_v = nn.BatchNorm1d(128)
+        self.fc2_v = nn.Linear(128, 128)
+        self.bn2_v = nn.BatchNorm1d(128)
+        self.fc3_v = nn.Linear(128, 1)
 
     def forward(self, kpts):
         b = kpts.shape[0]
         kpts = kpts.view(b, -1)
-        x = F.relu(self.bn1(self.fc1(kpts)))
-        x = F.relu(self.bn2(self.fc2(x)))
-        x = self.fc3(x)
-    
-        delta_xyz_pred = x[:, :3]
-        delta_rot_euler_pred = x[:, 3:] 
+        x = F.relu(self.bn1_t(self.fc1_t(kpts)))
+        x = F.relu(self.bn2_t(self.fc2_t(x)))
+        delta_xyz_pred = self.fc3_t(x)
         
-        return delta_xyz_pred, delta_rot_euler_pred
+        x = F.relu(self.bn1_r(self.fc1_r(kpts)))
+        x = F.relu(self.bn2_r(self.fc2_r(x)))
+        delta_rot_euler_pred = self.fc3_r(x)
+        
+        x = F.relu(self.bn1_v(self.fc1_v(kpts)))
+        x = F.relu(self.bn2_v(self.fc2_v(x)))
+        speed_pred = self.fc3_v(x).view(b, )
+    
+        #delta_xyz_pred = x[:, :3]
+        #delta_rot_euler_pred = x[:, 3:] 
+        return delta_xyz_pred, delta_rot_euler_pred, speed_pred
     
 class RMSELoss(nn.Module):
     def __init__(self, reduction='mean'):

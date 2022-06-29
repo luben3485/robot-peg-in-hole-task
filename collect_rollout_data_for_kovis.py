@@ -49,7 +49,7 @@ class CollectInsert(object):
         self.rollout_step = 5
         self.min_speed = 0.001
         self.max_speed = 0.022
-        self.start_offset = [0, 0, 0.00]
+        self.start_offset = [0, 0, 0.02]
         self.tilt = args.tilt
         self.yaw = args.yaw
 
@@ -96,7 +96,7 @@ class CollectInsert(object):
             source_rot_t = np.transpose(source_rot)
             target_rot = self.init_gripper_pose[:3, :3]
             delta_rotation = np.dot(source_rot_t, target_rot)
-            r = R.from_matrix(delta_rotation)
+            r = R.from_matrix()
             r_rotvec = r.as_rotvec()
             r = R.from_rotvec(r_rotvec / self.rollout_step)
             r_mat = r.as_matrix()

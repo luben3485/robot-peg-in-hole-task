@@ -55,12 +55,15 @@ class DataServoStereo(_data.Dataset):
         idx = self.ims[index].split('.')[0].split('_')
         gt = self.gts[int(idx[0])]
         vecM = torch.FloatTensor(np.array(gt[:-1])[self.motion_vec])
+        '''
         speed = gt[-1]
-        #intV = 1 - np.exp(float(idx[1]) * speed * self.a_dist)
         delta_xyz = vecM[:3] * speed * 80
+        '''
+        speed = 1 - np.exp(gt[-1] * self.a_dist)
+        delta_xyz = vecM[:3]
         delta_rot_euler = vecM[3:] / 10
-
-        return inL0, outDL, outSL, delta_xyz, delta_rot_euler
+        
+        return inL0, outDL, outSL, delta_xyz, delta_rot_euler, speed
 
 
 def img_proc_servo(data_path, im, im_size, obj_class,

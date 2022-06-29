@@ -223,7 +223,7 @@ class CoarseMover(object):
             dir_pred = real_kpt_pred - real_kpt_x_pred
             dir_pred = dir_pred / np.linalg.norm(dir_pred)
             # offset means translation offset now, and rotation offset is not used.
-            print(mean_kpt_pred, mean_kpt_x_pred, mean_kpt_y_pred)
+            #print(mean_kpt_pred, mean_kpt_x_pred, mean_kpt_y_pred)
             if not use_offset:
                 return real_kpt_pred, dir_pred, rot_mat_pred, confidence
             if use_offset:
