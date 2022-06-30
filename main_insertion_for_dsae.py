@@ -12,6 +12,8 @@ import random
 from scipy.spatial.transform import Rotation as R
 from inference_pointnet2_kpts import CoarseMover
 from inference_dsae import DSAEMover
+from inference_dsae_bykovis import DSAEMoverByKovis
+
 import sys
 import time
 import copy
@@ -323,8 +325,12 @@ def main():
         os.makedirs(benchmark_folder)
     tilt = False
     yaw = False
+    use_kovis = True
     coarse_mover = CoarseMover(model_path='kpts/2022-05-17_21-15', model_name='pointnet2_kpts', checkpoint_name='best_model_e_101.pth', use_cpu=False, out_channel=9)
-    dsae_mover = DSAEMover(ckpt_folder='insert-0626-notilt-noyaw', num=21) #tilt 0512-2 notilt 0506 insert-0616-notilt-yaw
+    if not use_kovis:
+        dsae_mover = DSAEMover(ckpt_folder='insert-0626-notilt-noyaw', num=21) #tilt 0512-2 notilt 0506 insert-0616-notilt-yaw
+    else:
+        dsae_mover = DSAEMoverByKovis(ckpt_folder='insert-0626-notilt-noyaw-bykovis', num=21)
     iter_num = 50
     cam_name_list = ['vision_eye_front']
     peg_top = 'peg_dummy_top'
@@ -383,12 +389,20 @@ def main():
                 ### start
                 gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
                 delta_xyz_pred, delta_rot_euler_red, speed = predict_xyzrot(cam_name_list, dsae_mover, rob_arm, tilt, yaw)
+
                 print('xyz:', delta_xyz_pred)
                 print('speed:', speed)
+                # bykovis
+                if speed > 0.8:  # 3DoF 0.8
+                    delta_xyz_pred = xyz * speed * 0.01  # 3DoF 0.01
+                else:
+                    delta_xyz_pred = xyz * speed * 0.001  # 3DoF 0.001
+                ''' #dsae
                 if speed > 2.8:
                     delta_xyz_pred = delta_xyz_pred * speed * 0.001
                 else:
                     delta_xyz_pred = delta_xyz_pred * speed * 0.001
+                '''
                 gripper_pose[:3, 3] = gripper_pose[:3, 3] + gripper_pose[:3, 0] * delta_xyz_pred[0] + gripper_pose[:3, 1] * delta_xyz_pred[1] + gripper_pose[:3, 2] * delta_xyz_pred[2]
 
                 if yaw:
@@ -425,11 +439,21 @@ def main():
                         print('servoing done!')
                         break
                 else:
+                    # bykovis
+                    if speed > 0.8:  # 3DoF 0.8 #4 6DoF 0.75
+                        cnt_end = 0
+                    elif speed <= 0.8:  # 3DoF 0.8 #4 6DoF 0.75
+                        cnt_end += 1
+                        if cnt_end > 3:  # 3DoF 3 15cm:0 30cm:0
+                            break
+                    # dsae
+                    '''
                     if speed < 2.8 or cnt >= 15:
                         cnt_end += 1
                         if cnt_end > 2:
                             print('servoing done!')
                             break
+                    '''
                 cnt = cnt + 1
 
             # insertion

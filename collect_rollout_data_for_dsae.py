@@ -46,7 +46,7 @@ class CollectInsert(object):
 
         self.iter = args.iter
         self.rollout_step = 1
-        self.start_offset = [0., 0., 0.01]
+        self.start_offset = [0., 0., 0.02]
         self.tilt = args.tilt
         self.yaw= args.yaw
 
@@ -84,11 +84,11 @@ class CollectInsert(object):
 
         # set motion vector & speed
         #vec = np.array([random.uniform(0, 0.010), random.uniform(-0.005, 0.005), random.uniform(-0.005, 0.005)])
-        vec = np.array([random.uniform(0, 0.040), random.uniform(-0.0010, 0.0010), random.uniform(-0.020, 0)])
+        vec = np.array([random.uniform(0, 0.040), random.uniform(-0.0010, 0.0010), random.uniform(-0.0010, 0.0010)])
         speed = np.linalg.norm(vec)
         vec = vec / speed
         if self.yaw:
-            yaw_angle = random.uniform(-25, 0)
+            yaw_angle = random.uniform(-20, 20)
             print('yaw angle', yaw_angle)
             r = R.from_euler('zyx', [0, 0, yaw_angle], degrees=True)
             r_mat = r.as_matrix()
@@ -198,15 +198,18 @@ class CollectInsert(object):
     def save_images(self, sample, step):
         seg_folder_path = [os.path.join(self.data_root, self.data_folder, self.data_type, 'front/segme')]
         color_folder_path = [os.path.join(self.data_root, self.data_folder, self.data_type, 'front/color')]
-        depth_folder_path = [os.path.join(self.data_root, self.data_folder, self.data_type, 'front/depth')]
+        depth16_folder_path = [os.path.join(self.data_root, self.data_folder, self.data_type, 'front/depth_uint16')]
+        depth8_folder_path = [os.path.join(self.data_root, self.data_folder, self.data_type, 'front/depth_uint8')]
         # create folder
         for i in range(1):
             if not os.path.exists(seg_folder_path[i]):
                 os.makedirs(seg_folder_path[i])
             if not os.path.exists(color_folder_path[i]):
                 os.makedirs(color_folder_path[i])
-            if not os.path.exists(depth_folder_path[i]):
-                os.makedirs(depth_folder_path[i])
+            if not os.path.exists(depth16_folder_path[i]):
+                os.makedirs(depth16_folder_path[i])
+            if not os.path.exists(depth8_folder_path[i]):
+                os.makedirs(depth8_folder_path[i])
         length = 1
         assert len(self.rgbd_cam) == length and len(self.seg_peg_cam) == length and len(self.seg_hole_cam) == length
         for idx in range(length):
@@ -215,8 +218,8 @@ class CollectInsert(object):
 
             # Get depth image
             depth = self.rob_arm.get_depth(cam_name=self.rgbd_cam[idx], near_plane=0.01, far_plane=1.5)
-            #depth_mm = (depth * 1000).astype(np.uint8)
-            depth_mm = (depth * 1000).astype(np.uint16)
+            depth_uint16 = (depth * 1000).astype(np.uint16)
+            depth_uint8 = copy.deepcopy(depth_uint16)
 
             # Get seg_peg rgb image
             seg_peg_rgb = self.rob_arm.get_rgb(cam_name=self.seg_peg_cam[idx])
@@ -232,15 +235,18 @@ class CollectInsert(object):
             seg[y_idx, x_idx] = 2
             y_idx, x_idx = np.nonzero(seg_peg_rgb)
             seg[y_idx, x_idx] = 1
-            '''
+
+            depth_uint8[depth_uint8 > 255] = 255
             # set bg to 255 for depth image
             y_idx, x_idx = np.where(seg == 0)
-            depth_mm[y_idx, x_idx] = 255
-            '''
+            depth_uint8[y_idx, x_idx] = 255
+            depth_uint8 = depth_uint8.astype(np.uint8)
+
             # save images
             file_name = str(sample).zfill(5) + '_' + str(step).zfill(2) + '.png'
             cv2.imwrite(os.path.join(color_folder_path[idx], file_name), rgb)
-            cv2.imwrite(os.path.join(depth_folder_path[idx], file_name), depth_mm)
+            cv2.imwrite(os.path.join(depth8_folder_path[idx], file_name), depth_uint8)
+            cv2.imwrite(os.path.join(depth16_folder_path[idx], file_name), depth_uint16)
             cv2.imwrite(os.path.join(seg_folder_path[idx], file_name), seg)
     '''
     def save_label(self, label):
