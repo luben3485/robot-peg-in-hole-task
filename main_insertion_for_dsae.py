@@ -232,23 +232,23 @@ def draw_registration_result(source, target, transformation):
     target_temp.paint_uniform_color([0, 0.651, 0.929])
     o3d.visualization.draw_geometries([target_temp, source_temp])
 
-def coarse_controller_with_icp(rob_arm, cam_name_list, trans_init, hole_top, hole_obj_bottom):
+def coarse_controller_with_icp(rob_arm, cam_name_list, trans_init, hole_top, hole_obj_bottom, add_noise=False):
     hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
     hole_obj_bottom_pose = rob_arm.get_object_matrix(obj_name=hole_obj_bottom)
-    scene_xyz, _ = get_pcd_from_multi_camera(rob_arm, cam_name_list, hole_top_pose, hole_obj_bottom_pose, noise=True)
+    scene_xyz, _ = get_pcd_from_multi_camera(rob_arm, cam_name_list, hole_top_pose, hole_obj_bottom_pose, noise=add_noise)
 
     # square hole
-    source = o3d.io.read_point_cloud('square_7x12x12_squarehole_for_icp.pcd')
-    source.points = o3d.utility.Vector3dVector(np.asarray(source.points) / 1000)
+    #source = o3d.io.read_point_cloud('square_7x12x12_squarehole_for_icp.pcd')
+    #source.points = o3d.utility.Vector3dVector(np.asarray(source.points) / 1000)
     # round hole
-    # source = o3d.io.read_point_cloud('full_hole.pcd')
+    source = o3d.io.read_point_cloud('full_hole.pcd')
     print(source)
     target = o3d.geometry.PointCloud()
     target.points = o3d.utility.Vector3dVector(scene_xyz/1000)
     threshold = 0.02 # 0.02
-    reg_p2p = o3d.registration.registration_icp(
+    reg_p2p = o3d.pipelines.registration.registration_icp(
         source, target, threshold, trans_init,
-        o3d.registration.TransformationEstimationPointToPoint())
+        o3d.pipelines.registration.TransformationEstimationPointToPoint())
 
     #draw_registration_result(source, target, reg_p2p.transformation)
     transformation = copy.deepcopy(reg_p2p.transformation)
@@ -260,7 +260,7 @@ def coarse_controller_with_icp(rob_arm, cam_name_list, trans_init, hole_top, hol
     '''
     return transformation
 
-def predict_kpts_no_oft_from_multiple_camera(cam_name_list, mover, rob_arm, detect_kpt=False):
+def predict_kpts_no_oft_from_multiple_camera(cam_name_list, mover, rob_arm, detect_kpt=False, add_noise=False):
     depth_mm_list = []
     camera2world_list = []
     for cam_name in cam_name_list:
@@ -275,7 +275,7 @@ def predict_kpts_no_oft_from_multiple_camera(cam_name_list, mover, rob_arm, dete
         depth_mm = (depth * 1000).astype(np.uint16)  # type: np.uint16 ; uint16 is needed by keypoint detection network
         depth_mm_list.append(depth_mm)
 
-    points, pcd_centroid, pcd_mean = mover.process_raw_mutliple_camera(depth_mm_list, camera2world_list, add_noise=False)
+    points, pcd_centroid, pcd_mean = mover.process_raw_mutliple_camera(depth_mm_list, camera2world_list, add_noise=add_noise)
     real_kpt_pred, dir_pred, rot_mat_pred, confidence = mover.inference_from_pcd(points, pcd_centroid, pcd_mean, use_offset=False)
     real_kpt_pred = real_kpt_pred / 1000  # unit: mm to m
     trans_init = np.zeros((4, 4))
@@ -367,8 +367,8 @@ def main():
                 _, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 50)
 
             # coarse approach with ICP
-            trans_init = predict_kpts_no_oft_from_multiple_camera(cam_name_list, coarse_mover, rob_arm, True)
-            transformation = coarse_controller_with_icp(rob_arm, cam_name_list, trans_init, hole_top, hole_obj_bottom)
+            trans_init = predict_kpts_no_oft_from_multiple_camera(cam_name_list, coarse_mover, rob_arm, detect_kpt=True, add_noise=True)
+            transformation = coarse_controller_with_icp(rob_arm, cam_name_list, trans_init, hole_top, hole_obj_bottom, add_noise=False)
             gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
             gripper_pose[:3, 3] = np.array([0.0, 0.0, 0.07])
             rot_matrix = np.dot(transformation[:3, :3], gripper_pose[:3, :3])
