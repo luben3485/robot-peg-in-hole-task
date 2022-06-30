@@ -308,11 +308,12 @@ def jitter_point_cloud(data, sigma=0.01, clip=0.05):
     jittered_data += data
     return jittered_data
 
-def predict_xyzrot(cam_name_list, mover, rob_arm, tilt, yaw):
+def predict_xyzrot(cam_name_list, mover, rob_arm, tilt, yaw, use_kovis=False):
     assert len(cam_name_list) == 1
 
     im = rob_arm.get_rgb(cam_name=cam_name_list[0])
-    #im = cv2.cvtColor(im, cv2.COLOR_RGB2GRAY)
+    if use_kovis:
+        im = cv2.cvtColor(im, cv2.COLOR_RGB2GRAY)
 
     delta_xyz, delta_rot_euler, speed = mover.inference(im, visualize=True, tilt=tilt, yaw=yaw)
 
@@ -390,7 +391,7 @@ def main():
             while True:
                 ### start
                 gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
-                delta_xyz_pred, delta_rot_euler_red, speed = predict_xyzrot(cam_name_list, dsae_mover, rob_arm, tilt, yaw)
+                delta_xyz_pred, delta_rot_euler_red, speed = predict_xyzrot(cam_name_list, dsae_mover, rob_arm, tilt, yaw, use_kovis=use_kovis)
 
                 print('xyz:', delta_xyz_pred)
                 print('speed:', speed)
