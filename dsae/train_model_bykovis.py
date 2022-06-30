@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from train_densenet import DenseNet, DenseNetTranspose, DenseBlock, TransitionDown, TransitionUp
+from dsae.train_densenet import DenseNet, DenseNetTranspose, DenseBlock, TransitionDown, TransitionUp
 
 
 class Encoder(nn.Module):
