@@ -13,7 +13,7 @@ from dsae.train_util import sample_range, img_patch, obj_looks, bg_image, fracta
 # settings
 #arg = yaml.load(open(sys.argv[1], 'r'), yaml.Loader)
 
-class KOVISMover(object):
+class DSAEMoverByKovis(object):
     def __init__(self, ckpt_folder, num):
         arg = yaml.load(open('dsae/result/' + ckpt_folder + '/servo.yaml', 'r'), yaml.Loader)
         arg = namedtuple('Arg', arg.keys())(**arg)
