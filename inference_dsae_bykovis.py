@@ -69,10 +69,10 @@ class DSAEMoverByKovis(object):
         return img.unsqueeze(0)
 
     def inference(self, img, visualize, tilt=False, yaw=False):
-        img = self.img_proc(img, self.im_size[0])
-        img = img.cuda()
+        inL = self.img_proc(img, self.im_size[0])
+        inL = inL.cuda()
         # forward-pass
-        keypL = self.enc(img)
+        keypL = self.enc(inL)
         depth, seg = self.dec(keypL[1])
         vec, speed = self.cvt(keypL[0])
         speed = torch.sigmoid(speed).detach().cpu().item()
