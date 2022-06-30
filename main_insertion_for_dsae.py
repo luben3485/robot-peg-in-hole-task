@@ -328,9 +328,9 @@ def main():
     use_kovis = True
     coarse_mover = CoarseMover(model_path='kpts/2022-05-17_21-15', model_name='pointnet2_kpts', checkpoint_name='best_model_e_101.pth', use_cpu=False, out_channel=9)
     if not use_kovis:
-        dsae_mover = DSAEMover(ckpt_folder='insert-0626-notilt-noyaw', num=23) #tilt 0512-2 notilt 0506 insert-0616-notilt-yaw
+        dsae_mover = DSAEMover(ckpt_folder='insert-0626-notilt-noyaw', num=21) #tilt 0512-2 notilt 0506 insert-0616-notilt-yaw
     else:
-        dsae_mover = DSAEMoverByKovis(ckpt_folder='insert-0626-notilt-noyaw-bykovis', num=21)
+        dsae_mover = DSAEMoverByKovis(ckpt_folder='insert-0626-notilt-noyaw-bykovis', num=23)
     iter_num = 50
     cam_name_list = ['vision_eye_front']
     peg_top = 'peg_dummy_top'
