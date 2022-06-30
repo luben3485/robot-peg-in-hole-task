@@ -246,9 +246,9 @@ def coarse_controller_with_icp(rob_arm, cam_name_list, trans_init, hole_top, hol
     target = o3d.geometry.PointCloud()
     target.points = o3d.utility.Vector3dVector(scene_xyz/1000)
     threshold = 0.02 # 0.02
-    reg_p2p = o3d.pipelines.registration.registration_icp(
+    reg_p2p = o3d.registration.registration_icp(
         source, target, threshold, trans_init,
-        o3d.pipelines.registration.TransformationEstimationPointToPoint())
+        o3d.registration.TransformationEstimationPointToPoint())
 
     #draw_registration_result(source, target, reg_p2p.transformation)
     transformation = copy.deepcopy(reg_p2p.transformation)
@@ -328,7 +328,7 @@ def main():
     use_kovis = True
     coarse_mover = CoarseMover(model_path='kpts/2022-05-17_21-15', model_name='pointnet2_kpts', checkpoint_name='best_model_e_101.pth', use_cpu=False, out_channel=9)
     if not use_kovis:
-        dsae_mover = DSAEMover(ckpt_folder='insert-0626-notilt-noyaw', num=21) #tilt 0512-2 notilt 0506 insert-0616-notilt-yaw
+        dsae_mover = DSAEMover(ckpt_folder='insert-0626-notilt-noyaw', num=23) #tilt 0512-2 notilt 0506 insert-0616-notilt-yaw
     else:
         dsae_mover = DSAEMoverByKovis(ckpt_folder='insert-0626-notilt-noyaw-bykovis', num=21)
     iter_num = 50
@@ -344,7 +344,7 @@ def main():
     #selected_hole_list = ['square_7x12x12', 'square_7x10x10', 'square_7x14x14', 'rectangle_7x8x11', 'rectangle_7x10x13', 'rectangle_7x12x15', 'circle_7x10', 'circle_7x12', 'circle_7x14']
     #selected_hole_list = ['rectangle_7x12x13', 'rectangle_7x10x12', 'square_7x11_5x11_5', 'circle_7x14', 'circle_7x10', 'pentagon_7x7', 'octagon_7x5']
     #selected_hole_list = ['square_7x11_5x11_5_squarehole', 'rectangle_7x10x12_squarehole', 'circle_7x14_squarehole', 'pentagon_7x9_squarehole']
-    selected_hole_list = ['circle_7x12', 'square_7x11_5x11_5', 'rectangle_7x10x12',  'pentagon_7x7']
+    selected_hole_list = ['square_7x11_5x11_5', 'circle_7x12', 'rectangle_7x10x12',  'pentagon_7x7']
     for selected_hole in selected_hole_list:
         f = open(os.path.join(benchmark_folder, "hole_score.txt"), "a")
         rob_arm = SingleRoboticArm()
@@ -356,6 +356,7 @@ def main():
         rob_arm.finish()
 
         insertion_succ_list = []
+        time_list = []
         for iter in range(iter_num):
             rob_arm = SingleRoboticArm()
             print('=' * 8 + str(iter) + '=' * 8)
@@ -366,6 +367,7 @@ def main():
             if tilt:
                 _, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 50)
 
+            start_time = time.time()
             # coarse approach with ICP
             trans_init = predict_kpts_no_oft_from_multiple_camera(cam_name_list, coarse_mover, rob_arm, detect_kpt=True, add_noise=True)
             transformation = coarse_controller_with_icp(rob_arm, cam_name_list, trans_init, hole_top, hole_obj_bottom, add_noise=False)
@@ -376,7 +378,7 @@ def main():
             gripper_pos = np.append(gripper_pose[:3, 3], 1).reshape(4, 1)
             gripper_pos = np.dot(transformation, gripper_pos)[:3, 0]
             gripper_pose[:3, 3] = gripper_pos
-            gripper_pose[:3, 3] += np.array(rot_matrix[:3, 0] * 0.005)
+            gripper_pose[:3, 3] += np.array(rot_matrix[:3, 0] * 0.03)
             gripper_pose[:3, 3] -= np.array(rot_matrix[:3, 2] * 0.015)
             if tilt == False and yaw == False:
                 gripper_pose[:3, :3] = gripper_init_pose[:3, :3]
@@ -470,6 +472,9 @@ def main():
             if dist < 0.025:
                 print('success!')
                 insertion_succ_list.append(1)
+                end_time = time.time()
+                time_list.append((end_time - start_time))
+                print('Time elasped:{:.02f}'.format((end_time - start_time)))
             else:
                 print('fail!')
                 insertion_succ_list.append(0)

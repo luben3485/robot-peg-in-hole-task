@@ -14,7 +14,7 @@ from dsae.train_util import sample_range, img_patch, obj_looks, bg_image, fracta
 #arg = yaml.load(open(sys.argv[1], 'r'), yaml.Loader)
 
 class KOVISMover(object):
-    def __init__(self, ckpt_folder):
+    def __init__(self, ckpt_folder, num):
         arg = yaml.load(open('dsae/result/' + ckpt_folder + '/servo.yaml', 'r'), yaml.Loader)
         arg = namedtuple('Arg', arg.keys())(**arg)
 
@@ -29,7 +29,7 @@ class KOVISMover(object):
         self.cvt = model.ConverterServo(arg.num_keypoint * 2 * 3, arg.growth_rate[2], arg.blk_cfg_cvt, [sum(arg.motion_vec), 1]).cuda()
         # load model
         #self.load_checkpoint(arg.dir_base)
-        self.load_checkpoint(os.path.join('result', ckpt_folder))
+        self.load_checkpoint(os.path.join('result', ckpt_folder), num)
         self.enc.eval()
         self.dec.eval()
         self.cvt.eval()
@@ -37,8 +37,9 @@ class KOVISMover(object):
         # visualize
         self.color = yaml.load(open('dsae/cfg/color.yaml', 'r'), Loader=yaml.Loader)
         self.num_obj = len(set(arg.obj_class))
-    def load_checkpoint(self, base_dir):
-        cp_net = torch.load(os.path.join('dsae', base_dir, 'ckpt.pth'))
+    def load_checkpoint(self, base_dir, num):
+        ckpt = 'ckpt_' + str(num) + '.pth'
+        cp_net = torch.load(os.path.join('dsae', base_dir, ckpt))
         self.enc.load_state_dict(cp_net['enc_state_dict'])
         self.dec.load_state_dict(cp_net['dec_state_dict'])
         self.cvt.load_state_dict(cp_net['cvt_state_dict'])
