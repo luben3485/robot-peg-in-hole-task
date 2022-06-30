@@ -26,7 +26,7 @@ class DSAEMoverByKovis(object):
         self.kper = model.KeyPointGaussian(arg.sigma_kp[0], (arg.num_keypoint, *arg.im_size[1]))
         self.enc = model.Encoder(arg.num_input, arg.num_keypoint, arg.growth_rate[0], arg.blk_cfg_enc, arg.drop_rate, self.kper).cuda()
         self.dec = model.Decoder(arg.num_keypoint, arg.growth_rate[1], arg.blk_cfg_dec, arg.num_output).cuda()
-        self.cvt = model.ConverterServo(arg.num_keypoint * 2 * 3, arg.growth_rate[2], arg.blk_cfg_cvt, [sum(arg.motion_vec), 1]).cuda()
+        self.cvt = model.ConverterServo(arg.num_keypoint * 1 * 3, arg.growth_rate[2], arg.blk_cfg_cvt, [sum(arg.motion_vec), 1]).cuda()
         # load model
         #self.load_checkpoint(arg.dir_base)
         self.load_checkpoint(os.path.join('result', ckpt_folder), num)
