@@ -1,7 +1,7 @@
 #!/bin/sh
 ### DSAE
-python collect_rollout_data_for_dsae.py --date 2022-06-26-notilt-yaw --iter 35 --data_type test --yaw
-python collect_rollout_data_for_dsae.py --date 2022-06-26-notilt-yaw --iter 8750 --data_type train --yaw
+#python collect_rollout_data_for_dsae.py --date 2022-06-26-notilt-yaw --iter 35 --data_type test --yaw
+#python collect_rollout_data_for_dsae.py --date 2022-06-26-notilt-yaw --iter 8750 --data_type train --yaw
 
 ### KOVIS
 ### round hole
@@ -15,10 +15,12 @@ python collect_rollout_data_for_dsae.py --date 2022-06-26-notilt-yaw --iter 8750
 
 
 ### ours
+#python collect_coarse_insertion_data_nomove.py --hole square_7x12x12_squarehole --date 2022-07-04-test --iter 10
 #python collect_coarse_insertion_data_nomove.py --hole square_7x12x12_squarehole --date 2022-06-16 --iter 10000
 #python collect_coarse_insertion_data_nomove.py --hole square_7x13x13_squarehole --date 2022-06-16 --iter 5000
 #python collect_coarse_insertion_data_nomove.py --hole rectangle_7x9x12_squarehole --date 2022-06-16 --iter 5000
 #python collect_coarse_insertion_data_nomove.py --hole rectangle_7x10x13_squarehole --date 2022-06-16 --iter 5000
+python collect_fine_insertion_data.py --hole square_7x12x12_squarehole --date 2022-07-04-test --iter 10 --offset_angle 10
 #python collect_fine_insertion_data.py --hole square_7x12x12_squarehole --date 2022-06-20 --iter 5000 --offset_angle 10
 #python collect_fine_insertion_data.py --hole square_7x13x13_squarehole --date 2022-06-20 --iter 5000 --offset_angle 10
 #python collect_fine_insertion_data.py --hole rectangle_7x9x12_squarehole --date 2022-06-20 --iter 5000 --offset_angle 10

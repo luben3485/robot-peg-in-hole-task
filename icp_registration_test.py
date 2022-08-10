@@ -292,13 +292,15 @@ def coarse_controller_with_icp_gt_pos(rob_arm, cam_name_list, hole_top, hole_obj
 def coarse_controller_with_icp(rob_arm, cam_name_list, trans_init, hole_top, hole_obj_bottom):
     hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
     hole_obj_bottom_pose = rob_arm.get_object_matrix(obj_name=hole_obj_bottom)
-    scene_xyz, _ = get_pcd_from_multi_camera(rob_arm, cam_name_list, hole_top_pose, hole_obj_bottom_pose, noise=False)
+    scene_xyz, _ = get_pcd_from_multi_camera(rob_arm, cam_name_list, hole_top_pose, hole_obj_bottom_pose, noise=True)
 
     # square hole
-    source = o3d.io.read_point_cloud('square_7x12x12_squarehole_for_icp.pcd')
-    source.points = o3d.utility.Vector3dVector(np.asarray(source.points) / 1000)
+    #source = o3d.io.read_point_cloud('square_7x12x12_squarehole_for_icp.pcd')
+    #source.points = o3d.utility.Vector3dVector(np.asarray(source.points) / 1000)
     # round hole
-    # source = o3d.io.read_point_cloud('full_hole.pcd')
+    # source = o3d.io.read_point_cloud('full_hole.pcd') #old
+    source = o3d.io.read_point_cloud('square_7x13x13_roundhole_for_icp.pcd')
+    source.points = o3d.utility.Vector3dVector(np.asarray(source.points) / 1000)
     print(source)
     target = o3d.geometry.PointCloud()
     target.points = o3d.utility.Vector3dVector(scene_xyz/1000)
@@ -307,7 +309,7 @@ def coarse_controller_with_icp(rob_arm, cam_name_list, trans_init, hole_top, hol
         source, target, threshold, trans_init,
         o3d.registration.TransformationEstimationPointToPoint())
 
-    draw_registration_result(source, target, reg_p2p.transformation)
+    #draw_registration_result(source, target, reg_p2p.transformation)
     transformation = copy.deepcopy(reg_p2p.transformation)
     #print(transformation)
     '''
@@ -332,7 +334,7 @@ def predict_kpts_no_oft_from_multiple_camera(cam_name_list, mover, rob_arm, dete
         depth_mm = (depth * 1000).astype(np.uint16)  # type: np.uint16 ; uint16 is needed by keypoint detection network
         depth_mm_list.append(depth_mm)
 
-    points, pcd_centroid, pcd_mean = mover.process_raw_mutliple_camera(depth_mm_list, camera2world_list, add_noise=False)
+    points, pcd_centroid, pcd_mean = mover.process_raw_mutliple_camera(depth_mm_list, camera2world_list, add_noise=True)
     real_kpt_pred, dir_pred, rot_mat_pred, confidence = mover.inference_from_pcd(points, pcd_centroid, pcd_mean, use_offset=False)
     real_kpt_pred = real_kpt_pred / 1000  # unit: mm to m
     trans_init = np.zeros((4, 4))
@@ -395,14 +397,19 @@ def main(args):
     benchmark_folder = os.path.join('pcd_benchmark', 'icp')
     if not os.path.exists(benchmark_folder):
         os.makedirs(benchmark_folder)
-    #coarse_mover = CoarseMover(model_path='kpts/2022-06-10_22-43', model_name='pointnet2_kpts', checkpoint_name='best_model_e_101.pth', use_cpu=False, out_channel=9)
-    coarse_mover = CoarseMover(model_path='kpts/2022-05-17_21-15', model_name='pointnet2_kpts', checkpoint_name='best_model_e_101.pth', use_cpu=False, out_channel=9)
+    # 6-DoF
+    coarse_mover = CoarseMover(model_path='kpts/2022-06-17_12-24', model_name='pointnet2_kpts', checkpoint_name='best_model_e_103.pth', use_cpu=False, out_channel=9)
+    # 3-DoF
+    #coarse_mover = CoarseMover(model_path='kpts/2022-05-17_21-15', model_name='pointnet2_kpts', checkpoint_name='best_model_e_42.pth', use_cpu=False, out_channel=9)
     #fine_mover = Mover(model_path='kpts/2022-04-01_15-11', model_name='pointnet2_kpts', checkpoint_name='best_model_e_43.pth', use_cpu=False, out_channel=9)
 
     #selected_hole_list = ['square', 'small_square', 'circle', 'rectangle', 'triangle']
     #selected_hole_list = ['square_7x11_5x11_5', 'square_7x12_5x12_5', 'rectangle_7x11_5x12', 'rectangle_7x12x11_5', 'rectangle_7x9x13', 'rectangle_7x10x12', 'rectangle_7x12x13']
     #selected_hole_list = ['square_7x11_5x11_5', 'rectangle_7x12x13', 'rectangle_7x10x12', 'circle_7x14', 'circle_7x12', 'circle_7x10', 'pentagon_7x7', 'octagon_7x5']
-    selected_hole_list = ['square_7x11_5x11_5_squarehole', 'circle_7x12_squarehole']
+    #selected_hole_list = ['square_7x11_5x11_5_squarehole', 'rectangle_7x10x12_squarehole', 'circle_7x14_squarehole', 'pentagon_7x9_squarehole']
+    #selected_hole_list = ['square_7x11_5x11_5_squarehole', 'rectangle_7x10x12_squarehole', 'circle_7x14_squarehole', 'pentagon_7x9_squarehole']
+    #selected_hole_list = ['square_7x11_5x11_5', 'rectangle_7x10x12', 'circle_7x12', 'pentagon_7x7']
+    selected_hole_list = ['rectangle_7x10x12_squarehole', 'circle_7x14_squarehole']
     for selected_hole in selected_hole_list:
         f = open(os.path.join(benchmark_folder, "hole_score.txt"), "a")
         hole_name = hole_setting[selected_hole][0]
@@ -410,11 +417,29 @@ def main(args):
         hole_bottom = hole_setting[selected_hole][2]
         hole_obj_bottom = hole_setting[selected_hole][3]
         insertion_succ_list = []
+        r_error, t_error = [], []
+        error_x, error_y, error_xy = [], [], []
+        time_list = []
         for i in range(args.iter):
             print('='*10 + 'iter:' + str(i) + '='*10)
             rob_arm = SingleRoboticArm()
             hole_pos = [random.uniform(0, 0.2), random.uniform(-0.45, -0.55), +3.5001e-02]
+            '''
+            # tmp compute time
+            hole_pos = np.array([0.1, -0.525, 0.035])
             rob_arm.set_object_position(hole_name, hole_pos)
+            gripper_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
+            hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
+            # 15cm
+            #delta_move = np.array([0.04, 0.04, 0.14])
+            # 30cm
+            delta_move = np.array([0.08, 0.08, 0.28])
+            gripper_pose[:3, 3] = hole_top_pose[:3, 3] + delta_move
+            rob_arm.movement(gripper_pose)
+            '''
+            # tmp hide
+            rob_arm.set_object_position(hole_name, hole_pos)
+
             if yaw:
                 random_yaw(rob_arm, [hole_name])
             if tilt:
@@ -430,7 +455,7 @@ def main(args):
             rob_arm.movement(start_pose)
             '''
             gripper_init_rot = rob_arm.get_object_matrix('UR5_ikTip')[:3, :3]
-
+            start_time = time.time()
             # coarse approach with ICP
             trans_init = predict_kpts_no_oft_from_multiple_camera(cam_name_list, coarse_mover, rob_arm, args.detect_kpt)
             transformation = coarse_controller_with_icp(rob_arm, cam_name_list, trans_init, hole_top, hole_obj_bottom)
@@ -457,6 +482,24 @@ def main(args):
             gripper_pose[:3, 3] = gripper_pos
             rob_arm.movement(gripper_pose)
             '''
+            # compute distance error
+            hole_keypoint_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
+            robot_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
+            r_error.append(np.sqrt(np.mean((hole_keypoint_top_pose[:3, :3] - robot_pose[:3, :3]) ** 2)))
+            t_error.append(np.sqrt(np.mean((hole_keypoint_top_pose[:3, 3] - robot_pose[:3, 3]) ** 2)))
+
+            # compute distance error
+            hole_top_pose = rob_arm.get_object_matrix(hole_top)
+            hole_top_pos = hole_top_pose[:3, 3]
+            gripper_pos = rob_arm.get_object_matrix('UR5_ikTip')[:3, 3]
+            error = gripper_pos - hole_top_pos
+            error_xy.append(np.linalg.norm(error[:2]))
+            print('error x:', error[0])
+            print('error y:', error[1])
+            print('error xy:', np.linalg.norm(error[:2]))
+            error_x.append(error[0])
+            error_y.append(error[1])
+
             # insertion
             gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
             gripper_pose[:3, 3] -= gripper_pose[:3, 0] * 0.08  # x-axis
@@ -471,12 +514,34 @@ def main(args):
                 print('success!')
             else:
                 insertion_succ_list.append(0)
+                r_error.pop()
+                t_error.pop()
+                error_x.pop()
+                error_y.pop()
+                error_xy.pop()
                 print('fail!')
+            end_time = time.time()
+            time_list.append((end_time - start_time))
             rob_arm.finish()
         insertion_succ = sum(insertion_succ_list) / len(insertion_succ_list)
         msg = '* ' + hole_name + ' hole success rate : ' + str(insertion_succ * 100) + '% (' + str(sum(insertion_succ_list)) + '/' + str(len(insertion_succ_list)) + ')'
         print(msg)
         f.write(msg + '\n')
+        if len(time_list) != 0:
+            time_ = sum(time_list) / len(time_list)
+            print('time:' + str(time_))
+            f.write('    * time:' + str(time_) + '\n')
+        if len(r_error) != 0 and len(t_error) != 0:
+            r_error = sum(r_error) / len(r_error)
+            t_error = sum(t_error) / len(t_error)
+            f.write('    * r t error' + str(r_error) + ' ' + str(t_error) + '\n')
+        if len(error_x)!=0 and len(error_y)!=0:
+            print('average x error', sum(error_x) / len(error_x))
+            print('average y error', sum(error_y) / len(error_y))
+            print('average xy error', sum(error_xy) / len(error_xy))
+            f.write('    * average x error' + str(sum(error_x) / len(error_x)) + '\n')
+            f.write('    * average y error' + str(sum(error_y) / len(error_y)) + '\n')
+            f.write('    * average xy error' + str(sum(error_xy) / len(error_xy)) + '\n')
         f.close()
 
     '''

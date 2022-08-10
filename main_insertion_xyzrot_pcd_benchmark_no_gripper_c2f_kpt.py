@@ -85,6 +85,7 @@ def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
 def random_yaw(rob_arm, obj_name_list, degree=45):
     for obj_name in obj_name_list:
         yaw_degree = random.uniform(-math.radians(degree), math.radians(degree))
+        #yaw_degree = 0
         rot_dir = rob_arm.get_object_matrix(obj_name)[:3, 0]
         if obj_name in ['pentagon_7x7_squarehole', 'pentagon_7x9_squarehole', 'rectangle_7x9x12_squarehole', 'rectangle_7x10x13_squarehole']:
             rot_dir = rob_arm.get_object_matrix(obj_name)[:3, 1]
@@ -310,7 +311,7 @@ def predict_dsae_xyzrot_from_multiple_camera(cam_name_list, mover, rob_arm):
 def parse_args():
     '''PARAMETERS'''
     parser = argparse.ArgumentParser()
-    parser.add_argument('--iter', type=int, default=4)
+    parser.add_argument('--iter', type=int, default=10)
 
     return parser.parse_args()
 
@@ -320,17 +321,24 @@ def main(args):
     benchmark_folder = 'pcd_benchmark/offset'
     if not os.path.exists(benchmark_folder):
         os.makedirs(benchmark_folder)
+    task = '6DoF'
     #f = open(os.path.join(benchmark_folder, "hole_score.txt"), "w")
     #f = open(os.path.join(benchmark_folder, "hole_score_"+str(args.tilt_gripper)+".txt"), "w")
     #coarse_mover = Mover(model_path='kpts/2022-03-12_12-25', model_name='pointnet2_kpts', checkpoint_name='best_model_e_65.pth', use_cpu=False, out_channel=9)
     #coarse_mover = CoarseMover(model_path='kpts/2022-04-23_04-13', model_name='pointnet2_kpts', checkpoint_name='best_model_e_117.pth', use_cpu=False, out_channel=9)
     # original
-    # 3DoF
-    coarse_mover = CoarseMover(model_path='kpts/2022-06-10_22-43', model_name='pointnet2_kpts',checkpoint_name='best_model_e_101.pth', use_cpu=False, out_channel=9)
-    # 6DoF
-    #coarse_mover = CoarseMover(model_path='kpts/2022-06-22_00-05', model_name='pointnet2_kpts',checkpoint_name='best_model_e_100.pth', use_cpu=False, out_channel=9)
-    # rotscale
-    #coarse_mover = CoarseMover(model_path='kpts/2022-06-26_12-35', model_name='pointnet2_kpts',checkpoint_name='best_model_e_80.pth', use_cpu=False, out_channel=9)
+    if task == '3DoF':
+        # 3DoF
+        coarse_mover = CoarseMover(model_path='kpts/2022-06-10_22-43', model_name='pointnet2_kpts',checkpoint_name='best_model_e_101.pth', use_cpu=False, out_channel=9)
+    elif task =='4DoF' or task =='6DoF':
+        # 6DoF
+        #coarse_mover = CoarseMover(model_path='kpts/2022-06-22_00-05', model_name='pointnet2_kpts',checkpoint_name='best_model_e_100.pth', use_cpu=False, out_channel=9)
+        # rotscale
+        coarse_mover = CoarseMover(model_path='kpts/2022-06-26_12-35', model_name='pointnet2_kpts', checkpoint_name='best_model_e_80.pth', use_cpu=False, out_channel=9)
+        # rotscale + weighted_l1_oft
+        #coarse_mover = CoarseMover(model_path='kpts/2022-07-16_02-14', model_name='pointnet2_kpts', checkpoint_name='best_model_e_90.pth', use_cpu=False, out_channel=9)
+        #round hole for tilt
+        #coarse_mover = CoarseMover(model_path='kpts/2022-06-10_22-43', model_name='pointnet2_kpts', checkpoint_name='best_model_e_101.pth', use_cpu=False, out_channel=9)
     # no heatamp
     #coarse_mover = CoarseMover(model_path='kpts/2022-06-23_17-18', model_name='pointnet2_kpts_no_heatmap',checkpoint_name='best_model_e_131.pth', use_cpu=False, out_channel=9)
     # no heatmap noscale
@@ -338,13 +346,18 @@ def main(args):
     # no scale
     #coarse_mover = CoarseMover(model_path='kpts/2022-06-23_17-07', model_name='pointnet2_kpts',checkpoint_name='best_model_e_102.pth', use_cpu=False, out_channel=9)
 
-    # original
-    # 3DoF
-    fine_mover = FineMover(model_path='offset/2022-06-10_22-09', model_name='pointnet2_offset', checkpoint_name='best_model_e_108.pth', use_cpu=False, out_channel=9)
-    # 6DoF
-    #fine_mover = FineMover(model_path='offset/2022-06-23_16-36', model_name='pointnet2_offset', checkpoint_name='best_model_e_100.pth', use_cpu=False, out_channel=9)
-    # rotscale
-    #fine_mover = FineMover(model_path='offset/2022-06-26_12-51', model_name='pointnet2_offset', checkpoint_name='best_model_e_80.pth', use_cpu=False, out_channel=9)
+    #original
+    if task == '3DoF':
+        # 3DoF
+        fine_mover = FineMover(model_path='offset/2022-06-10_22-09', model_name='pointnet2_offset', checkpoint_name='best_model_e_108.pth', use_cpu=False, out_channel=9)
+    elif task == '4DoF' or task == '6DoF':
+        # 6DoF
+        #fine_mover = FineMover(model_path='offset/2022-06-23_16-36', model_name='pointnet2_offset', checkpoint_name='best_model_e_100.pth', use_cpu=False, out_channel=9)
+        # rotscale
+        fine_mover = FineMover(model_path='offset/2022-06-26_12-51', model_name='pointnet2_offset', checkpoint_name='best_model_e_80.pth', use_cpu=False, out_channel=9)
+        # round hole for tilt
+        #fine_mover = FineMover(model_path='offset/2022-06-10_22-09', model_name='pointnet2_offset', checkpoint_name='best_model_e_108.pth', use_cpu=False, out_channel=9)
+
     # noscale
     #fine_mover = FineMover(model_path='offset/2022-06-23_16-40', model_name='pointnet2_offset', checkpoint_name='best_model_e_100.pth', use_cpu=False, out_channel=9)
     # nocrop
@@ -355,9 +368,17 @@ def main(args):
     #fine_mover = DSAEMover(model_path='dsae/2022-04-19_15-48', model_name='cnn_dsae', checkpoint_name='best_model_e_72.pth', use_cpu=False, out_channel=9)
 
     iter_num = args.iter
+
     gripper_init_move = False
-    tilt = False
-    yaw = False
+    if task == '3DoF':
+        tilt = False
+        yaw = False
+    elif task == '4DoF':
+        tilt = False
+        yaw = True
+    elif task == '6DoF':
+        tilt = True
+        yaw = True
     crop_pcd = True
     #cam_name_list = ['vision_eye_left', 'vision_eye_right']
     cam_name_list = ['vision_eye_front']
@@ -370,9 +391,13 @@ def main(args):
     #selected_hole_list = ['circle_7x10', 'circle_7x11', 'circle_7x12', 'circle_7x13', 'circle_7x14']
     #selected_hole_list = ['square_7x12x12', 'square_7x10x10', 'rectangle_7x8x11', 'rectangle_7x10x13', 'circle_7x10', 'circle_7x12', 'circle_7x14', 'octagon_7x5', 'pentagon_7x7', 'hexagon_7x6']
     #selected_hole_list = [ 'rectangle_7x12x13', 'rectangle_7x10x12', 'square_7x11_5x11_5', 'circle_7x14', 'circle_7x12', 'circle_7x10', 'pentagon_7x7', 'octagon_7x5']
-    #selected_hole_list = ['square_7x11_5x11_5', 'circle_7x12', 'rectangle_7x10x12', 'pentagon_7x7']
-    #selected_hole_list = ['square_7x11_5x11_5_squarehole', 'rectangle_7x10x12_squarehole', 'circle_7x14_squarehole', 'pentagon_7x9_squarehole']
-    selected_hole_list = ['square_7x11_5x11_5']
+    if task == '3DoF':
+        #selected_hole_list = ['square_7x11_5x11_5', 'circle_7x12', 'rectangle_7x10x12', 'pentagon_7x7']
+        selected_hole_list = ['pentagon_7x7']
+    elif task == '4DoF' or task == '6DoF':
+        #selected_hole_list = ['square_7x11_5x11_5_squarehole', 'rectangle_7x10x12_squarehole', 'circle_7x14_squarehole', 'pentagon_7x9_squarehole']
+        selected_hole_list = ['pentagon_7x9_squarehole']
+    #selected_hole_list = ['square_7x11_5x11_5']
 
     for selected_hole in selected_hole_list:
 
@@ -401,6 +426,7 @@ def main(args):
         t_error = []
         skip_cnt = 0
         time_list = []
+        error_x, error_y, error_xy = [], [], []
         for iter in range(iter_num):
             rob_arm = SingleRoboticArm()
             print('=' * 8 + str(iter) + '=' * 8)
@@ -426,6 +452,8 @@ def main(args):
             else:
                 #hole_pos = np.array([random.uniform(0.0, 0.2), random.uniform(-0.45, -0.55), 0.035])
                 hole_pos = np.array([random.uniform(0.02, 0.18), random.uniform(-0.52574, -0.44574), origin_hole_pos[2]]) #np.array([random.uniform(0.0, 0.2), random.uniform(-0.45, -0.55), 0.035])
+                #hole_pos = np.array([0.1, -0.525, 0.035])
+                '''
                 # tmp compute time
                 hole_pos = np.array([0.1, -0.525, 0.035])
                 rob_arm.set_object_position(hole_name, hole_pos)
@@ -435,19 +463,19 @@ def main(args):
                 # 15cm
                 #delta_move = np.array([0.04, 0.04, 0.14])
                 # 30cm
-                delta_move = np.array([0.08, 0.08, 0.28])
+                #delta_move = np.array([0.08, 0.08, 0.28])
                 gripper_pose[:3, 3] = hole_top_pose[:3, 3] + delta_move
                 rob_arm.movement(gripper_pose)
-
-                #tmp hide
                 '''
+                #tmp hide
+
                 rob_arm.set_object_position(hole_name, hole_pos)
                 rob_arm.set_object_quat(hole_name, origin_hole_quat)
-                '''
+
                 if yaw:
                     random_yaw(rob_arm, [hole_name], degree=20)
                 if tilt:
-                    _, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 50)
+                    _, tilt_degree = random_tilt(rob_arm, [hole_name], 30, 40)
 
             '''
             # (test)move to hole top
@@ -497,10 +525,11 @@ def main(args):
                 if abs(r_euler[0]) < 90 and abs(r_euler[1]) < 90 and abs(r_euler[2]) < 90:
                 '''
                 gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
-                rot_matrix = np.dot(gripper_pose[:3, :3], delta_rot_pred[:3, :3])
-                gripper_pose[:3, :3] = rot_matrix
+                if True:#if task != '3DoF':
+                    rot_matrix = np.dot(gripper_pose[:3, :3], delta_rot_pred[:3, :3])
+                    gripper_pose[:3, :3] = rot_matrix
                 gripper_pose[:3, 3] += delta_xyz_pred #(3,)
-                gripper_pose[:3, 3] += np.array(rot_matrix[:3, 0]*0.01) # test 0.005   #demo 0.01
+                gripper_pose[:3, 3] += np.array(gripper_pose[:3, 0]*0.005) # test 0.005   #demo 0.01
                 rob_arm.movement(gripper_pose)
                 '''
                 gripper_pose_after = rob_arm.get_object_matrix(obj_name='UR5_ikTip')
@@ -553,9 +582,10 @@ def main(args):
                     step_size = np.linalg.norm(delta_xyz_pred)
                     print('step_size', step_size)
                     print('delta_rot_euler_pred', delta_rot_euler_pred)
-                    #rot_matrix = np.dot(gripper_pose[:3, :3], delta_rot_pred[:3, :3])
-                    rot_matrix = np.dot(delta_rot_pred[:3, :3], gripper_pose[:3, :3])
-                    gripper_pose[:3, :3] = rot_matrix
+                    if True:#if task != '3DoF':
+                        #rot_matrix = np.dot(gripper_pose[:3, :3], delta_rot_pred[:3, :3])
+                        rot_matrix = np.dot(delta_rot_pred[:3, :3], gripper_pose[:3, :3])
+                        gripper_pose[:3, :3] = rot_matrix
                     gripper_pose[:3, 3] += delta_xyz_pred #(3,)
                     rob_arm.movement(gripper_pose)
 
@@ -578,8 +608,8 @@ def main(args):
                     if f_dir_error > 20.0:
                         print('crash! Angle is too large.')
                         break
-                    if (step_size < 0.01 and (abs(delta_rot_euler_pred)< 1.5).all()) or cnt >= 1: #0.005 5or10 #15cm 0.01 1
-                        print('servoing done!')
+                    if (step_size < 0.01 and (abs(delta_rot_euler_pred)< 1.5).all()) or cnt >= 2: #test 0.005 3 5or10 #15cm 0.01 1.5 1 #30cm 0.01 3 1
+                        print('servoing done!') # err3DoF 0.01 3 1
                         break
                     cnt = cnt + 1
 
@@ -588,7 +618,19 @@ def main(args):
                 robot_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
                 r_error.append(np.sqrt(np.mean((hole_keypoint_top_pose[:3, :3] - robot_pose[:3, :3]) ** 2)))
                 t_error.append(np.sqrt(np.mean((hole_keypoint_top_pose[:3, 3] - robot_pose[:3, 3]) ** 2)))
-                print('t_error', np.sqrt(np.mean((hole_keypoint_top_pose[:3, 3] - robot_pose[:3, 3]) ** 2)))
+                #print('t_error', np.sqrt(np.mean((hole_keypoint_top_pose[:3, 3] - robot_pose[:3, 3]) ** 2)))
+                if task == '3DoF':
+                    # compute distance error
+                    hole_top_pose = rob_arm.get_object_matrix(hole_top)
+                    hole_top_pos = hole_top_pose[:3, 3]
+                    gripper_pos = rob_arm.get_object_matrix('UR5_ikTip')[:3, 3]
+                    error = gripper_pos - hole_top_pos
+                    error_xy.append(np.linalg.norm(error[:2]))
+                    print('error x:', error[0])
+                    print('error y:', error[1])
+                    print('error xy:', np.linalg.norm(error[:2]))
+                    error_x.append(error[0])
+                    error_y.append(error[1])
 
                 # insertion
                 robot_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
@@ -613,11 +655,17 @@ def main(args):
                     print('Time elasped:{:.02f}'.format((end_time - start_time)))
                 else:
                     print('fail')
+                    r_error.pop()
+                    t_error.pop()
+                    if task == '3DoF':
+                        error_x.pop()
+                        error_y.pop()
+                        error_xy.pop()
                     #fail_kpt_error_list.append(f_kpt_error)
                     #fail_kpt_yz_error_list.append(f_kpt_yz_error)
                     #fail_dir_error_list.append(f_dir_error)
                     insertion_succ_list.append(0)
-
+                time.sleep(3)
                 rob_arm.finish()
                 '''
                 # pull up
@@ -625,17 +673,28 @@ def main(args):
                 robot_pose[:3, 3] += robot_pose[:3, 0] * 0.1  # x-axis
                 rob_arm.movement(robot_pose)
                 '''
-        time_ = sum(time_list) / len(time_list)
-        r_error = sum(r_error) / len(r_error)
-        t_error = sum(t_error) / len(t_error)
+
+
         insertion_succ = sum(insertion_succ_list) / len(insertion_succ_list)
         msg = '    * hole success rate : ' + str(insertion_succ * 100) + '% (' + str(sum(insertion_succ_list)) + '/' + str(len(insertion_succ_list)) + ')'
         print(selected_hole + '\n' + msg )
         f.write('* ' + selected_hole + '\n')
         f.write(msg + '\n')
-        f.write('    * r t error' + str(r_error) + ' ' + str(t_error) + '\n')
-        print('time:' + str(time_))
-        f.write('    * time:' + str(time_) + '\n')
+        if len(r_error) != 0 and len(t_error)!=0:
+            r_error = sum(r_error) / len(r_error)
+            t_error = sum(t_error) / len(t_error)
+            f.write('    * r t error' + str(r_error) + ' ' + str(t_error) + '\n')
+        if len(time_list) != 0:
+            time_ = sum(time_list) / len(time_list)
+            print('time:' + str(time_))
+            f.write('    * time:' + str(time_) + '\n')
+        if len(error_x)!=0 and len(error_y)!=0 and task == '3DoF':
+            print('average x error', sum(error_x) / len(error_x))
+            print('average y error', sum(error_y) / len(error_y))
+            print('average xy error', sum(error_xy) / len(error_xy))
+            f.write('    * average x error' + str(sum(error_x) / len(error_x)) + '\n')
+            f.write('    * average y error' + str(sum(error_y) / len(error_y)) + '\n')
+            f.write('    * average xy error' + str(sum(error_xy) / len(error_xy)) + '\n')
 
         '''
         if len(kpt_error_list) != 0 and len(kpt_yz_error_list) != 0 and len(dir_error_list) != 0:

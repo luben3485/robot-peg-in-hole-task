@@ -206,6 +206,7 @@ class CoarseMover(object):
             mean_kpt_y_pred = mean_kpt_y_pred[0].cpu().numpy()
             rot_mat_pred = rot_mat_pred[0].cpu().numpy()
             confidence = confidence[0].cpu().numpy()
+
             # visualize heatmap
             points = points.cpu().transpose(2, 1).squeeze().numpy()
             origin_real_pcd = (points * m) + centroid
@@ -213,7 +214,7 @@ class CoarseMover(object):
             visualize_pcd.points = o3d.utility.Vector3dVector(origin_real_pcd)
             heatmap_color = np.repeat(confidence, 3, axis=1).reshape(-1, 3)  # n x 3
             visualize_pcd.colors = o3d.utility.Vector3dVector(heatmap_color)
-            o3d.io.write_point_cloud('heatmap.ply', visualize_pcd)
+            o3d.io.write_point_cloud('visualize_heatmap.ply', visualize_pcd)
 
             trans_of_pred = trans_of_pred[0].cpu().numpy()
             real_kpt_pred = (mean_kpt_pred * m) + centroid  # unit:mm
@@ -222,6 +223,23 @@ class CoarseMover(object):
             real_kpt_x_pred = real_kpt_x_pred.reshape(1, 3)
             dir_pred = real_kpt_pred - real_kpt_x_pred
             dir_pred = dir_pred / np.linalg.norm(dir_pred)
+            real_kpt_y_pred = (mean_kpt_y_pred * m) + centroid  # unit:mm
+            real_kpt_y_pred = real_kpt_y_pred.reshape(1, 3)
+
+            # visualize kpts
+            visualize_pcd = o3d.geometry.PointCloud()
+            visualize_pcd.points = o3d.utility.Vector3dVector(origin_real_pcd)
+            point_color = np.repeat([[0.9, 0.9, 0.9]], origin_real_pcd.shape[0], axis=0)
+            visualize_pcd.colors = o3d.utility.Vector3dVector(point_color)
+            o3d.io.write_point_cloud('visualize_origin.ply', visualize_pcd)
+            visualize_pcd = o3d.geometry.PointCloud()
+            real_kpt_pred = real_kpt_pred.reshape(1, 3)
+            visualize_pcd.points = o3d.utility.Vector3dVector(np.concatenate((real_kpt_pred, real_kpt_x_pred, real_kpt_y_pred), axis=0))
+            real_kpt_pred = real_kpt_pred.reshape(3, )
+            kpt_color = np.array([[1, 0, 0], [1, 1, 0], [0, 1, 0]])
+            visualize_pcd.colors = o3d.utility.Vector3dVector(kpt_color)
+            o3d.io.write_point_cloud('visualize_kpts.ply', visualize_pcd)
+
             # offset means translation offset now, and rotation offset is not used.
             #print(mean_kpt_pred, mean_kpt_x_pred, mean_kpt_y_pred)
             if not use_offset:

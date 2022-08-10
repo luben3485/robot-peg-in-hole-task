@@ -80,7 +80,9 @@ class DSAEMoverByKovis(object):
         xyz = (vec[:3] / torch.norm(vec[:3])).detach().cpu().numpy()
         if tilt or yaw:
             rot = vec[3:].detach().cpu().numpy()
-            rot *= 5
+            print('!!!rot', (rot-0.5)*20)
+            rot = np.clip((rot-0.5)*40, -2, 2)
+
         else:
             rot = None
         if visualize:

@@ -87,6 +87,7 @@ def random_tilt(rob_arm, obj_name_list, min_tilt_degree, max_tilt_degree):
 def random_yaw(rob_arm, obj_name_list, degree=45):
     for obj_name in obj_name_list:
         yaw_degree = random.uniform(-math.radians(degree), math.radians(degree))
+        #yaw_degree = random.uniform(0, math.radians(degree))
         rot_dir = rob_arm.get_object_matrix(obj_name)[:3, 0]
         if obj_name in ['pentagon_7x7_squarehole', 'pentagon_7x9_squarehole', 'rectangle_7x9x12_squarehole', 'rectangle_7x10x13_squarehole']:
             rot_dir = rob_arm.get_object_matrix(obj_name)[:3, 1]
@@ -238,10 +239,10 @@ def coarse_controller_with_icp(rob_arm, cam_name_list, trans_init, hole_top, hol
     scene_xyz, _ = get_pcd_from_multi_camera(rob_arm, cam_name_list, hole_top_pose, hole_obj_bottom_pose, noise=add_noise)
 
     # square hole
-    #source = o3d.io.read_point_cloud('square_7x12x12_squarehole_for_icp.pcd')
-    #source.points = o3d.utility.Vector3dVector(np.asarray(source.points) / 1000)
+    source = o3d.io.read_point_cloud('square_7x12x12_squarehole_for_icp.pcd')
+    source.points = o3d.utility.Vector3dVector(np.asarray(source.points) / 1000)
     # round hole
-    source = o3d.io.read_point_cloud('full_hole.pcd')
+    #source = o3d.io.read_point_cloud('full_hole.pcd')
     print(source)
     target = o3d.geometry.PointCloud()
     target.points = o3d.utility.Vector3dVector(scene_xyz/1000)
@@ -325,13 +326,13 @@ def main():
     if not os.path.exists(benchmark_folder):
         os.makedirs(benchmark_folder)
     tilt = False
-    yaw = False
+    yaw = True
     use_kovis = True
     coarse_mover = CoarseMover(model_path='kpts/2022-05-17_21-15', model_name='pointnet2_kpts', checkpoint_name='best_model_e_101.pth', use_cpu=False, out_channel=9)
     if not use_kovis:
         dsae_mover = DSAEMover(ckpt_folder='insert-0626-notilt-noyaw', num=21) #tilt 0512-2 notilt 0506 insert-0616-notilt-yaw
     else:
-        dsae_mover = DSAEMoverByKovis(ckpt_folder='insert-0626-notilt-noyaw-bykovis', num=23)
+        dsae_mover = DSAEMoverByKovis(ckpt_folder='insert-0626-notilt-yaw-bykovis', num=23) #3DoF insert-0626-notilt-yaw-bykovis
     iter_num = 50
     cam_name_list = ['vision_eye_front']
     peg_top = 'peg_dummy_top'
@@ -344,8 +345,8 @@ def main():
     #selected_hole_list = ['octagon_7x5', 'pentagon_7x7', 'hexagon_7x6']
     #selected_hole_list = ['square_7x12x12', 'square_7x10x10', 'square_7x14x14', 'rectangle_7x8x11', 'rectangle_7x10x13', 'rectangle_7x12x15', 'circle_7x10', 'circle_7x12', 'circle_7x14']
     #selected_hole_list = ['rectangle_7x12x13', 'rectangle_7x10x12', 'square_7x11_5x11_5', 'circle_7x14', 'circle_7x10', 'pentagon_7x7', 'octagon_7x5']
-    #selected_hole_list = ['square_7x11_5x11_5_squarehole', 'rectangle_7x10x12_squarehole', 'circle_7x14_squarehole', 'pentagon_7x9_squarehole']
-    selected_hole_list = ['square_7x11_5x11_5', 'circle_7x12', 'rectangle_7x10x12',  'pentagon_7x7']
+    selected_hole_list = ['square_7x11_5x11_5_squarehole', 'rectangle_7x10x12_squarehole', 'circle_7x14_squarehole', 'pentagon_7x9_squarehole']
+    #selected_hole_list = ['square_7x11_5x11_5', 'circle_7x12', 'rectangle_7x10x12',  'pentagon_7x7']
     for selected_hole in selected_hole_list:
         f = open(os.path.join(benchmark_folder, "hole_score.txt"), "a")
         rob_arm = SingleRoboticArm()
@@ -363,12 +364,23 @@ def main():
             print('=' * 8 + str(iter) + '=' * 8)
             hole_pos = [random.uniform(0, 0.2), random.uniform(-0.45, -0.55), +3.5001e-02]
             rob_arm.set_object_position(hole_name, hole_pos)
+
+            ### tmp
+            delta_move = np.array([0, 0, random.uniform(0.02, 0.04)])
+            start_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
+            hole_top_pose = rob_arm.get_object_matrix(obj_name=hole_top)
+            start_pos = hole_top_pose[:3, 3]
+            start_pos += delta_move
+            start_pose[:3, 3] = start_pos
+            rob_arm.movement(start_pose)
+
             if yaw:
                 random_yaw(rob_arm, [hole_name], degree=20)
             if tilt:
                 _, tilt_degree = random_tilt(rob_arm, [hole_name], 0, 50)
 
             start_time = time.time()
+            '''
             # coarse approach with ICP
             trans_init = predict_kpts_no_oft_from_multiple_camera(cam_name_list, coarse_mover, rob_arm, detect_kpt=True, add_noise=True)
             transformation = coarse_controller_with_icp(rob_arm, cam_name_list, trans_init, hole_top, hole_obj_bottom, add_noise=False)
@@ -380,38 +392,43 @@ def main():
             gripper_pos = np.dot(transformation, gripper_pos)[:3, 0]
             gripper_pose[:3, 3] = gripper_pos
             gripper_pose[:3, 3] += np.array(rot_matrix[:3, 0] * 0.03)
-            gripper_pose[:3, 3] -= np.array(rot_matrix[:3, 2] * 0.015)
+            gripper_pose[:3, 3] -= np.array(rot_matrix[:3, 2] * 0.010)
             if tilt == False and yaw == False:
                 gripper_pose[:3, :3] = gripper_init_pose[:3, :3]
             rob_arm.movement(gripper_pose)
-
+            '''
             # closed-loop
             cnt = 0
             cnt_end = 0
             while True:
                 ### start
                 gripper_pose = rob_arm.get_object_matrix('UR5_ikTip')
-                delta_xyz_pred, delta_rot_euler_red, speed = predict_xyzrot(cam_name_list, dsae_mover, rob_arm, tilt, yaw, use_kovis=use_kovis)
-
+                delta_xyz_pred, delta_rot_euler_pred, speed = predict_xyzrot(cam_name_list, dsae_mover, rob_arm, tilt, yaw, use_kovis=use_kovis)
                 print('xyz:', delta_xyz_pred)
                 print('speed:', speed)
                 # bykovis
-                if speed > 0.8:  # 3DoF 0.8
-                    delta_xyz_pred = xyz * speed * 0.01  # 3DoF 0.01
+                if speed > 0.4:  # 3DoF 0.35
+                    delta_xyz_pred = delta_xyz_pred * speed * 0.01  # 3DoF 0.01
                 else:
-                    delta_xyz_pred = xyz * speed * 0.001  # 3DoF 0.001
+                    delta_xyz_pred = delta_xyz_pred * speed * 0.005  # 3DoF 0.001
                 ''' #dsae
                 if speed > 2.8:
                     delta_xyz_pred = delta_xyz_pred * speed * 0.001
                 else:
                     delta_xyz_pred = delta_xyz_pred * speed * 0.001
                 '''
-                gripper_pose[:3, 3] = gripper_pose[:3, 3] + gripper_pose[:3, 0] * delta_xyz_pred[0] + gripper_pose[:3, 1] * delta_xyz_pred[1] + gripper_pose[:3, 2] * delta_xyz_pred[2]
+                #gripper_pose[:3, 3] = gripper_pose[:3, 3] + gripper_pose[:3, 0] * delta_xyz_pred[0] + gripper_pose[:3, 1] * delta_xyz_pred[1] + gripper_pose[:3, 2] * delta_xyz_pred[2]
+                gripper_pose[:3, 3] = gripper_pose[:3, 3] + gripper_pose[:3, 0] * delta_xyz_pred[0]
 
                 if yaw:
                     delta_rot_euler_pred[0] = 0
                     delta_rot_euler_pred[1] = 0
-
+                    print('rot:', delta_rot_euler_pred)
+                    r = R.from_euler('zyx', delta_rot_euler_pred, degrees=True)
+                    delta_rot_pred = r.as_matrix()
+                    rot_matrix = np.dot(gripper_pose[:3, :3], delta_rot_pred[:3, :3])
+                    #rot_matrix = np.dot(delta_rot_pred[:3, :3], gripper_pose[:3, :3])
+                    gripper_pose[:3, :3] = rot_matrix
                 if tilt and yaw:
                     print(delta_rot_euler_pred)
                     r = R.from_euler('zyx', delta_rot_euler_pred, degrees=True)
@@ -437,15 +454,24 @@ def main():
                 if angle > 80 and tilt:
                     print('break! Angle is too large')
                     break
-                if tilt or yaw:
-                    if (speed < 0.8 and (abs(delta_rot_euler_pred) < 1.5).all()) or cnt >= 30:
+
+                if tilt:
+                    if (speed < 0.35 and (abs(delta_rot_euler_pred) < 1.5).all()):
                         print('servoing done!')
                         break
+                elif yaw:
+                    if speed > 0.4:
+                        cnt_end = 0
+                    if speed < 0.4:
+                        cnt_end += 1
+                        if cnt_end > 0:  # 3DoF 3 15cm:0 30cm:0
+                            print('servoing done!')
+                            break
                 else:
                     # bykovis
-                    if speed > 0.8:  # 3DoF 0.8 #4 6DoF 0.75
+                    if speed > 0.35:  # 3DoF 0.8 #4 6DoF 0.75
                         cnt_end = 0
-                    elif speed <= 0.8:  # 3DoF 0.8 #4 6DoF 0.75
+                    elif speed <= 0.35:  # 3DoF 0.8 #4 6DoF 0.75
                         cnt_end += 1
                         if cnt_end > 3:  # 3DoF 3 15cm:0 30cm:0
                             break
@@ -461,7 +487,7 @@ def main():
 
             # insertion
             robot_pose = rob_arm.get_object_matrix(obj_name='UR5_ikTarget')
-            robot_pose[:3, 3] -= robot_pose[:3, 0] * 0.25  # x-axis
+            robot_pose[:3, 3] -= robot_pose[:3, 0] * 0.08  # x-axis
             rob_arm.movement(robot_pose)
 
             # record insertion
